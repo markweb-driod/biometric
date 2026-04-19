@@ -612,56 +612,6 @@ body {
   padding: 0.5rem 0;
 }
 
-/* ─── Flip Camera Button (3D) ─── */
-.btn-flip {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: inherit;
-  position: relative;
-  color: var(--gray-600);
-  background:
-    linear-gradient(180deg, var(--white) 0%, var(--gray-100) 100%);
-  box-shadow:
-    0 2px 0 var(--gray-300),
-    0 4px 8px rgba(0, 0, 0, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
-  transition:
-    transform 150ms var(--ease-out),
-    box-shadow 150ms var(--ease-out),
-    color 150ms;
-}
-
-.btn-flip:hover {
-  transform: translateY(-1px);
-  color: var(--green-700);
-  box-shadow:
-    0 3px 0 var(--gray-300),
-    0 6px 14px rgba(0, 0, 0, 0.12),
-    0 1px 0 rgba(255, 255, 255, 0.9) inset;
-}
-
-.btn-flip:active {
-  transform: translateY(2px);
-  box-shadow:
-    0 0px 0 var(--gray-300),
-    0 1px 3px rgba(0, 0, 0, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.5) inset;
-}
-
-.btn-flip svg {
-  transition: transform 400ms var(--ease-spring);
-}
-
-.btn-flip:active svg {
-  transform: rotate(180deg);
-}
-
 /* ─── Capture Button (3D + Glow) ─── */
 .btn-capture {
   width: 72px;
@@ -755,11 +705,6 @@ body {
 
 .btn-capture:active:not(:disabled) .capture-ring {
   transform: scale(0.85);
-}
-
-.btn-placeholder {
-  width: 48px;
-  height: 48px;
 }
 
 /* ═══════════════════════════════════════════════════
