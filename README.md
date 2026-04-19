@@ -15,13 +15,11 @@ A web-based biometric enrollment portal for Nasarawa State University, Keffi (NS
 
 ### Development Dependencies
 
-| Library               | Version  | Purpose                                         |
-| --------------------- | -------- | ----------------------------------------------- |
-| Vite                  | ^6.3.2   | Build tool and dev server (ESM-native, HMR)     |
-| TypeScript            | ~5.7.2   | Static type checking                             |
-| @vitejs/plugin-react  | ^4.4.1   | Vite plugin for React JSX transform and Fast Refresh |
-| @types/react          | ^19.1.2  | TypeScript type definitions for React            |
-| @types/react-dom      | ^19.1.2  | TypeScript type definitions for React DOM        |
+- Vite ^6.3.2
+- TypeScript ~5.7.2
+- @vitejs/plugin-react ^4.4.1
+- @types/react ^19.1.2
+- @types/react-dom ^19.1.2
 
 ### Browser APIs Used
 
