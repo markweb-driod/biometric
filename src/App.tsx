@@ -101,7 +101,7 @@ export default function App() {
               <p>Enrolling: <strong>{userId}</strong></p>
             </div>
             <div className="page-content-area">
-              <EnrollmentFlow userId={userId} onCancel={() => setStarted(false)} />
+              <EnrollmentFlow userId={userId} onCancel={() => { setStarted(false); setUserId(''); }} />
             </div>
           </>
         )}

@@ -197,7 +197,7 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={handleReset}
+            onClick={onCancel}
           >
             Enroll Another User
           </button>
