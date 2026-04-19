@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
+import { DeviceSelector } from './DeviceSelector';
 
 interface CameraCaptureProps {
   onCapture: (imageData: string) => void;
@@ -18,26 +19,38 @@ export function CameraCapture({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
 
   // Stable refs for callbacks to avoid re-triggering effects
   const cbRefs = useRef({ onCapture, onPermissionDenied, onStreaming, onPermissionRequested });
   cbRefs.current = { onCapture, onPermissionDenied, onStreaming, onPermissionRequested };
 
-  const startCamera = useCallback(async (facing: 'user' | 'environment') => {
+  const startCamera = useCallback(async (deviceId?: string) => {
+    // Stop existing stream first
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
     cbRefs.current.onPermissionRequested();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: facing,
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-        },
+      const constraints: MediaStreamConstraints = {
+        video: deviceId
+          ? { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+          : { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
-      });
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+      }
+      // Auto-select the device that was actually opened
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        const settings = track.getSettings();
+        if (settings.deviceId && !deviceId) {
+          setSelectedDeviceId(settings.deviceId);
+        }
       }
       cbRefs.current.onStreaming();
     } catch (err) {
@@ -53,7 +66,7 @@ export function CameraCapture({
 
   // Start camera on mount
   useEffect(() => {
-    startCamera(facingMode);
+    startCamera();
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
@@ -61,6 +74,11 @@ export function CameraCapture({
       }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDeviceChange = useCallback((deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    startCamera(deviceId);
+  }, [startCamera]);
 
   const handleCapture = useCallback(() => {
     const video = videoRef.current;
@@ -83,18 +101,13 @@ export function CameraCapture({
     }
   }, []);
 
-  const handleFlipCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    const next = facingMode === 'user' ? 'environment' : 'user';
-    setFacingMode(next);
-    startCamera(next);
-  }, [facingMode, startCamera]);
-
   return (
     <div className="camera-capture">
+      <DeviceSelector
+        kind="videoinput"
+        selectedDeviceId={selectedDeviceId}
+        onSelect={handleDeviceChange}
+      />
       <div className="camera-viewport">
         <video
           ref={videoRef}
@@ -115,33 +128,13 @@ export function CameraCapture({
       <div className="camera-controls">
         <button
           type="button"
-          className="btn-flip"
-          onClick={handleFlipCamera}
-          title="Flip camera"
-        >
-          <FlipIcon />
-        </button>
-        <button
-          type="button"
           className="btn-capture"
           onClick={handleCapture}
           disabled={!isStreaming}
         >
           <span className="capture-ring" />
         </button>
-        <div className="btn-placeholder" />
       </div>
     </div>
-  );
-}
-
-function FlipIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 19H4a2 2 0 01-2-2V7a2 2 0 012-2h5" />
-      <path d="M13 5h7a2 2 0 012 2v10a2 2 0 01-2 2h-5" />
-      <path d="M14 3l2 2-2 2" />
-      <path d="M10 17l-2 2 2 2" />
-    </svg>
   );
 }
