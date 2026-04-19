@@ -1,4 +1,4 @@
-import { useReducer, useCallback, useEffect, useRef } from 'react';
+import { useReducer, useCallback, useRef } from 'react';
 import {
   enrollmentReducer,
   initialEnrollmentState,
@@ -67,13 +67,6 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
     if (state.faceCapture.status !== 'error') return;
     doSubmit(state.faceCapture.imageData);
   }, [state.faceCapture, doSubmit]);
-
-  // Auto-advance from success to fingerprint step after a brief delay
-  useEffect(() => {
-    if (state.faceCapture.status === 'success') {
-      // No auto-advance; user clicks Continue
-    }
-  }, [state.faceCapture.status]);
 
   const handleFingerprint = useCallback(() => {
     dispatch({ type: 'FINGERPRINT_DONE' });
