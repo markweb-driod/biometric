@@ -60,7 +60,7 @@
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f0f2f1;
+  background: #eef1ef;
   color: var(--gray-800);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -215,6 +215,12 @@ body {
   flex-direction: column;
   align-items: center;
   padding: 0 0 4rem;
+  background: linear-gradient(180deg,
+    #16503a 0px,
+    #1a6b48 60px,
+    #d0ddd4 220px,
+    #eef1ef 420px
+  );
 }
 
 /* Hero section with green gradient bg */
@@ -222,20 +228,20 @@ body {
   text-align: center;
   width: 100%;
   margin-left: 0;
-  padding: 2.5rem 1.5rem 3rem;
+  padding: 2.5rem 1.5rem 3.5rem;
   margin-bottom: 0;
-  background: linear-gradient(180deg, var(--green-900) 0%, var(--green-800) 40%, #1a7a47 100%);
+  background: linear-gradient(180deg, var(--green-900) 0%, var(--green-800) 50%, #1b6d46 100%);
   position: relative;
 }
 
 .page-hero::after {
   content: '';
   position: absolute;
-  bottom: -24px;
+  bottom: -1px;
   left: 0;
   right: 0;
-  height: 48px;
-  background: linear-gradient(180deg, rgba(26, 122, 71, 0.08) 0%, transparent 100%);
+  height: 2px;
+  background: transparent;
   pointer-events: none;
 }
 
@@ -283,7 +289,7 @@ body {
 .page-content-area {
   width: 100%;
   max-width: 500px;
-  margin-top: -1.5rem;
+  margin-top: -1rem;
   padding: 0 1.25rem;
   position: relative;
   z-index: 2;
@@ -374,8 +380,10 @@ body {
   background: var(--white);
   padding: 0.85rem 1.25rem;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--gray-200);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .step-item {
@@ -444,10 +452,12 @@ body {
   width: 100%;
   max-width: 500px;
   background: var(--white);
-  border: 1px solid var(--gray-200);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: var(--radius-xl);
   padding: 2rem;
-  box-shadow: var(--shadow-card);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.07);
   animation: cardEnter var(--duration-slow) var(--ease-out);
 }
 
