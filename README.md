@@ -6,15 +6,10 @@ A web-based biometric enrollment portal for Nasarawa State University, Keffi (NS
 
 ## Technical Stack
 
-### Runtime Dependencies
+### Libraries
 
-| Library     | Version  | Purpose                                      |
-| ----------- | -------- | -------------------------------------------- |
-| React       | ^19.1.0  | UI component library (functional components, hooks) |
-| React DOM   | ^19.1.0  | DOM rendering for React                      |
-
-### Development Dependencies
-
+- React ^19.1.0
+- React DOM ^19.1.0
 - Vite ^6.3.2
 - TypeScript ~5.7.2
 - @vitejs/plugin-react ^4.4.1
