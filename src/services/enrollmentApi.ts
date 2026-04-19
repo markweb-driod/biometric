@@ -1,5 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 const MOCK_MODE = import.meta.env.VITE_MOCK_API !== 'false';
+const MAX_IMAGE_SIZE = 500_000; // ~500KB base64 limit
 
 interface EnrollFacePayload {
   userId: string;
@@ -14,6 +15,10 @@ interface EnrollFaceResponse {
 export async function enrollFace(
   payload: EnrollFacePayload
 ): Promise<EnrollFaceResponse> {
+  if (payload.image.length > MAX_IMAGE_SIZE) {
+    throw new Error('Captured image is too large. Please retake with lower resolution.');
+  }
+
   if (MOCK_MODE) {
     await new Promise((r) => setTimeout(r, 800));
     return { success: true, message: 'Mock enrollment successful' };

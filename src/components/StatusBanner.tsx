@@ -28,8 +28,8 @@ const icons = {
 
 export function StatusBanner({ type, message, onRetry }: StatusBannerProps) {
   return (
-    <div className={`status-banner status-${type}`}>
-      <span className="status-icon">{icons[type]}</span>
+    <div className={`status-banner status-${type}`} role="alert" aria-live="assertive">
+      <span className="status-icon" aria-hidden="true">{icons[type]}</span>
       <span className="status-message">{message}</span>
       {onRetry && (
         <button type="button" className="btn btn-small" onClick={onRetry}>

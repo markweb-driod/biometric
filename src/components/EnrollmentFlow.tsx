@@ -17,9 +17,10 @@ const STEPS = [
 
 interface EnrollmentFlowProps {
   userId: string;
+  onCancel: () => void;
 }
 
-export function EnrollmentFlow({ userId }: EnrollmentFlowProps) {
+export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
   const [state, dispatch] = useReducer(
     enrollmentReducer,
     userId,
@@ -70,10 +71,7 @@ export function EnrollmentFlow({ userId }: EnrollmentFlowProps) {
   // Auto-advance from success to fingerprint step after a brief delay
   useEffect(() => {
     if (state.faceCapture.status === 'success') {
-      const timer = setTimeout(() => {
-        dispatch({ type: 'FACE_ADVANCE' });
-      }, 1500);
-      return () => clearTimeout(timer);
+      // No auto-advance; user clicks Continue
     }
   }, [state.faceCapture.status]);
 
@@ -152,9 +150,29 @@ export function EnrollmentFlow({ userId }: EnrollmentFlowProps) {
           )}
 
           {state.faceCapture.status === 'success' && (
-            <StatusBanner type="success" message="Face captured successfully! Advancing…" />
+            <>
+              <StatusBanner type="success" message="Face captured successfully!" />
+              <button
+                type="button"
+                className="btn btn-primary btn-full"
+                onClick={() => dispatch({ type: 'FACE_ADVANCE' })}
+              >
+                Continue to Fingerprint
+              </button>
+            </>
           )}
         </div>
+      )}
+
+      {/* ── Face Capture Cancel ── */}
+      {state.step === 'face-capture' && (
+        <button
+          type="button"
+          className="btn btn-ghost cancel-link"
+          onClick={onCancel}
+        >
+          Cancel Enrollment
+        </button>
       )}
 
       {/* ── Fingerprint Step (placeholder) ── */}
@@ -165,6 +183,7 @@ export function EnrollmentFlow({ userId }: EnrollmentFlowProps) {
             Place your finger on the sensor to continue enrollment.
           </p>
           <StatusBanner type="success" message="Face capture complete." />
+          <StatusBanner type="info" message="Fingerprint hardware integration pending — this step is simulated." />
           <div className="fingerprint-placeholder">
             <div className="fingerprint-graphic">
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -184,7 +203,7 @@ export function EnrollmentFlow({ userId }: EnrollmentFlowProps) {
               className="btn btn-primary"
               onClick={handleFingerprint}
             >
-              Complete Fingerprint Scan
+              Simulate Fingerprint Scan
             </button>
           </div>
         </div>
