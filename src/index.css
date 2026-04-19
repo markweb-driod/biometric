@@ -1189,6 +1189,121 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════
+   DEVICE SELECTOR
+   ═══════════════════════════════════════════════════ */
+.device-selector {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+}
+
+.device-selector-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--gray-700);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.device-selector-trigger:hover:not(:disabled) {
+  border-color: var(--gray-300);
+}
+
+.device-selector-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.device-selector--open .device-selector-trigger {
+  border-color: var(--green-600);
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.1);
+}
+
+.device-selector-icon {
+  display: flex;
+  align-items: center;
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
+
+.device-selector-label {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-selector-chevron {
+  flex-shrink: 0;
+  color: var(--gray-400);
+  transition: transform var(--duration-fast);
+}
+
+.device-selector--open .device-selector-chevron {
+  transform: rotate(180deg);
+}
+
+.device-selector-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  list-style: none;
+  padding: 4px;
+  animation: menuIn var(--duration-fast) var(--ease-out);
+}
+
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.device-selector-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--gray-700);
+  border-radius: 6px;
+  transition: background var(--duration-fast);
+}
+
+.device-selector-option:hover {
+  background: var(--gray-50);
+}
+
+.device-selector-option--active {
+  color: var(--green-700);
+  font-weight: 550;
+}
+
+.device-selector-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+}
+
+/* ═══════════════════════════════════════════════════
    RESPONSIVE
    ═══════════════════════════════════════════════════ */
 @media (max-width: 600px) {
