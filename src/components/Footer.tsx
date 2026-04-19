@@ -10,9 +10,6 @@ export function Footer() {
             <span className="footer-brand-tagline">Secure identity verification</span>
           </div>
           <div className="footer-links">
-            <a href="https://nsuk.edu.ng" target="_blank" rel="noopener noreferrer">
-              nsuk.edu.ng
-            </a>
             <a href="mailto:info@nsuk.edu.ng">Contact</a>
           </div>
         </div>

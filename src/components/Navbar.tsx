@@ -7,7 +7,9 @@ export function Navbar({ userId }: NavbarProps) {
     <nav className="navbar">
       <div className="navbar-inner">
         <a href="/" className="navbar-brand">
-          <div className="navbar-logo">NSUK</div>
+          <div className="navbar-logo">
+            <img src="/images/logo1.png" alt="NSUK" />
+          </div>
           <div className="navbar-title">
             <span className="navbar-title-main">NSUK Biometrics</span>
             <span className="navbar-title-sub">Nasarawa State University, Keffi</span>
@@ -15,9 +17,6 @@ export function Navbar({ userId }: NavbarProps) {
         </a>
         <div className="navbar-nav">
           <a href="/" className="active">Enrollment</a>
-          <a href="https://nsuk.edu.ng" target="_blank" rel="noopener noreferrer">
-            Portal
-          </a>
         </div>
         {userId && (
           <div className="navbar-status">

@@ -88,12 +88,10 @@ export function CameraCapture({
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
-    setFacingMode((prev) => {
-      const next = prev === 'user' ? 'environment' : 'user';
-      startCamera(next);
-      return next;
-    });
-  }, [startCamera]);
+    const next = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(next);
+    startCamera(next);
+  }, [facingMode, startCamera]);
 
   return (
     <div className="camera-capture">
@@ -107,6 +105,9 @@ export function CameraCapture({
         />
         <div className="face-guide">
           <div className="face-oval" />
+          <div className="face-corners">
+            <span /><span /><span /><span />
+          </div>
           <span className="face-guide-label">Position your face here</span>
         </div>
         <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -114,7 +115,7 @@ export function CameraCapture({
       <div className="camera-controls">
         <button
           type="button"
-          className="btn btn-secondary"
+          className="btn-flip"
           onClick={handleFlipCamera}
           title="Flip camera"
         >
@@ -122,7 +123,7 @@ export function CameraCapture({
         </button>
         <button
           type="button"
-          className="btn btn-capture"
+          className="btn-capture"
           onClick={handleCapture}
           disabled={!isStreaming}
         >
@@ -136,12 +137,11 @@ export function CameraCapture({
 
 function FlipIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M16 3h5v5" />
-      <path d="M4 20L21 3" />
-      <path d="M21 16v5h-5" />
-      <path d="M15 15l6 6" />
-      <path d="M4 4l5 5" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 19H4a2 2 0 01-2-2V7a2 2 0 012-2h5" />
+      <path d="M13 5h7a2 2 0 012 2v10a2 2 0 01-2 2h-5" />
+      <path d="M14 3l2 2-2 2" />
+      <path d="M10 17l-2 2 2 2" />
     </svg>
   );
 }
