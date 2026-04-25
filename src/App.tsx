@@ -16,17 +16,17 @@ export default function App() {
           <>
             <div className="page-hero">
               <span className="page-hero-badge">Biometric System</span>
-              <h1>Student Enrollment</h1>
+              <h1>Biometric Enrollment</h1>
               <p>
-                Capture face and fingerprint data for secure identity
-                verification at Nasarawa State University, Keffi.
+                Staff-operated portal for capturing face and fingerprint data
+                for student and staff identity verification at NSUK.
               </p>
             </div>
             <div className="page-content-area">
               <div className="step-content">
                 <h2>Get Started</h2>
                 <p className="step-description">
-                  Enter the student or staff ID to begin biometric enrollment.
+                  Enter the subject's student or staff ID to begin a new biometric enrollment session.
                 </p>
 
                 <div className="features-row">
@@ -73,7 +73,7 @@ export default function App() {
                   className="enrollment-form"
                 >
                   <div className="form-group">
-                    <label className="form-label" htmlFor="user-id">Student / Staff ID</label>
+                    <label className="form-label" htmlFor="user-id">Subject ID (Student / Staff)</label>
                     <input
                       id="user-id"
                       type="text"
