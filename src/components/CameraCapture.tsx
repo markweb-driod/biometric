@@ -2,7 +2,7 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { DeviceSelector } from './DeviceSelector';
 
 interface CameraCaptureProps {
-  onCapture: (imageData: string) => void;
+  onCapture: (imageData: string, livenessFrames: string[]) => void;
   onPermissionDenied: (error: string) => void;
   onStreaming: () => void;
   onPermissionRequested: () => void;
@@ -19,14 +19,34 @@ export function CameraCapture({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const livenessBufferRef = useRef<string[]>([]);
+  const livenessIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
 
   // Stable refs for callbacks to avoid re-triggering effects
   const cbRefs = useRef({ onCapture, onPermissionDenied, onStreaming, onPermissionRequested });
   cbRefs.current = { onCapture, onPermissionDenied, onStreaming, onPermissionRequested };
 
+  // Capture a half-resolution frame from the live stream for liveness analysis.
+  const captureFrame = useCallback((): string | null => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return null;
+    const lc = document.createElement('canvas');
+    lc.width = Math.round(video.videoWidth / 2);
+    lc.height = Math.round(video.videoHeight / 2);
+    const ctx = lc.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, lc.width, lc.height);
+    return lc.toDataURL('image/jpeg', 0.7);
+  }, []);
+
   const startCamera = useCallback(async (deviceId?: string) => {
-    // Stop existing stream first
+    // Stop existing liveness collection and stream
+    if (livenessIntervalRef.current !== null) {
+      clearInterval(livenessIntervalRef.current);
+      livenessIntervalRef.current = null;
+    }
+    livenessBufferRef.current = [];
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -53,6 +73,14 @@ export function CameraCapture({
         }
       }
       cbRefs.current.onStreaming();
+
+      // Start background frame collection for liveness (350 ms interval, rolling buffer of 3)
+      livenessIntervalRef.current = setInterval(() => {
+        const frame = captureFrame();
+        if (frame !== null) {
+          livenessBufferRef.current = [...livenessBufferRef.current.slice(-2), frame];
+        }
+      }, 350);
     } catch (err) {
       const message =
         err instanceof DOMException && err.name === 'NotAllowedError'
@@ -68,6 +96,10 @@ export function CameraCapture({
   useEffect(() => {
     startCamera();
     return () => {
+      if (livenessIntervalRef.current !== null) {
+        clearInterval(livenessIntervalRef.current);
+        livenessIntervalRef.current = null;
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
@@ -85,20 +117,30 @@ export function CameraCapture({
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
+    // Grab buffered liveness frames before stopping the stream
+    const livenessFrames = [...livenessBufferRef.current];
+
+    // Stop liveness collection
+    if (livenessIntervalRef.current !== null) {
+      clearInterval(livenessIntervalRef.current);
+      livenessIntervalRef.current = null;
+    }
+    livenessBufferRef.current = [];
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
     ctx.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    cbRefs.current.onCapture(dataUrl);
 
     // Stop stream after capture
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+
+    cbRefs.current.onCapture(dataUrl, livenessFrames);
   }, []);
 
   return (
@@ -121,7 +163,7 @@ export function CameraCapture({
           <div className="face-corners">
             <span /><span /><span /><span />
           </div>
-          <span className="face-guide-label">Position your face here</span>
+          <span className="face-guide-label">Position subject's face here</span>
         </div>
         <canvas ref={canvasRef} style={{ display: 'none' }} />
       </div>

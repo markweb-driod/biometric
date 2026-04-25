@@ -32,13 +32,17 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
   const cameraKeyRef = useRef(0);
   // Guard against double-submit from rapid clicks
   const submittingRef = useRef(false);
+  // Background frames collected by CameraCapture for liveness check
+  const livenessFramesRef = useRef<string[]>([]);
 
-  const handleCapture = useCallback((imageData: string) => {
+  const handleCapture = useCallback((imageData: string, livenessFrames: string[]) => {
+    livenessFramesRef.current = livenessFrames;
     dispatch({ type: 'FACE_CAPTURED', imageData });
   }, []);
 
   const handleRecapture = useCallback(() => {
     cameraKeyRef.current += 1;
+    livenessFramesRef.current = [];
     dispatch({ type: 'FACE_RECAPTURE' });
   }, []);
 
@@ -47,7 +51,7 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
     submittingRef.current = true;
     dispatch({ type: 'FACE_SUBMITTING' });
     try {
-      await enrollFace({ userId, image: imageData });
+      await enrollFace({ userId, image: imageData, livenessFrames: livenessFramesRef.current });
       dispatch({ type: 'FACE_SUBMIT_SUCCESS' });
     } catch (err) {
       dispatch({
@@ -73,10 +77,6 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
     dispatch({ type: 'FINGERPRINT_DONE' });
   }, []);
 
-  const handleReset = useCallback(() => {
-    dispatch({ type: 'RESET' });
-  }, []);
-
   return (
     <div className="enrollment-flow">
       <StepIndicator steps={STEPS} currentStep={state.step} />
@@ -86,7 +86,7 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
         <div className="step-content">
           <h2>Face Capture</h2>
           <p className="step-description">
-            Position your face within the oval guide and ensure good lighting.
+            Position the subject's face within the oval guide and ensure good lighting before capturing.
           </p>
 
           {state.faceCapture.status === 'requesting-permission' && (
@@ -174,7 +174,7 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
         <div className="step-content">
           <h2>Fingerprint Capture</h2>
           <p className="step-description">
-            Select your fingerprint scanner and place your finger on the sensor.
+            Select the fingerprint scanner and place the subject's finger on the sensor.
           </p>
           <StatusBanner type="success" message="Face capture complete." />
           <FingerprintStep onDone={handleFingerprint} />
