@@ -1,6 +1,6 @@
 import type { EnrollmentApiErrorCode } from '../services/enrollmentApi';
 
-export type EnrollmentStep = 'face-capture' | 'fingerprint' | 'complete';
+export type EnrollmentStep = 'face-capture' | 'fingerprint' | 'review' | 'complete';
 
 export type CaptureState =
   | { status: 'idle' }
@@ -24,6 +24,8 @@ export interface EnrollmentState {
   userId: string;
   faceCapture: CaptureState;
   fingerprintDone: boolean;
+  /** Preserved face image data for the review step. */
+  capturedFaceImageData?: string;
 }
 
 export const initialEnrollmentState = (userId: string): EnrollmentState => ({

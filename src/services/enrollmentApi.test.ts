@@ -179,9 +179,10 @@ describe('mapBackendError — error code mapping', () => {
     expect(err.retryable).toBe(true);
   });
 
-  it('maps unclassified error → unknown_error', () => {
+  it('maps unclassified error → validation_failed for 4xx below 500', () => {
+    // HTTP 418 falls inside the generic 4xx branch → validation_failed.
     const err = mapBackendError(418, "I'm a teapot");
-    expect(err.code).toBe('unknown_error');
+    expect(err.code).toBe('validation_failed');
     expect(err.retryable).toBe(true);
   });
 

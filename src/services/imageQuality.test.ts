@@ -170,13 +170,18 @@ describe('analyzeImageQuality — brightness checks', () => {
   });
 
   it('flags warning-level too-dark for luma between 32 and 50', async () => {
-    // Use striped pixels so sharpness is high (no blur error).
-    // Stripe luma values are 40 and 40 — alternating same colour produces
-    // the desired average of ~40 while avoiding edge-contrast that could
-    // raise a brightness warning for the wrong reason.
-    // Instead use a striped pattern where both values sit inside 32–50.
-    const pixels = stripedPixels(640 * 480, 35, 45);
-    const result = await runQuality(pixels);
+    // Face-region pixels: skin-tone at luma ~40 (32 < luma < 50 → warning only).
+    // R=55 G=40 B=30 → Y ≈ 0.299*55 + 0.587*40 + 0.114*30 ≈ 16.4+23.5+3.4 ≈ 43
+    // Skin-tone: Cb ≈ 128 - 0.168736*55 - 0.331264*40 + 0.5*30 ≈ 128-9.3-13.3+15 ≈ 120 ✓
+    //            Cr ≈ 128 + 0.5*55 - 0.418688*40 - 0.081312*30 ≈ 128+27.5-16.7-2.4 ≈ 136 ✓
+    const count = 640 * 480;
+    const facePixels = new Uint8ClampedArray(count * 4);
+    for (let i = 0; i < count * 4; i += 4) {
+      facePixels[i] = 55; facePixels[i + 1] = 40; facePixels[i + 2] = 30; facePixels[i + 3] = 255;
+    }
+    // Full-frame uses striped high-contrast pixels for adequate sharpness score.
+    stubCanvas({ w: 640, h: 480, pixels: facePixels, fullPixels: stripedPixels(640 * 480, 80, 200) });
+    const result = await analyzeImageQuality('data:image/jpeg;base64,fake');
     const issues = issuesWith(result.issues, 'too-dark');
     expect(issues).toHaveLength(1);
     expect(issues[0].severity).toBe('warning');

@@ -1,7 +1,8 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { DeviceSelector } from './DeviceSelector';
 
 interface CameraCaptureProps {
+  /** Pre-selected camera device ID from app-level setup. Empty string → default camera. */
+  initialDeviceId: string;
   onCapture: (imageData: string, livenessFrames: string[]) => void;
   onPermissionDenied: (error: string) => void;
   onStreaming: () => void;
@@ -10,6 +11,7 @@ interface CameraCaptureProps {
 }
 
 export function CameraCapture({
+  initialDeviceId,
   onCapture,
   onPermissionDenied,
   onStreaming,
@@ -21,7 +23,7 @@ export function CameraCapture({
   const streamRef = useRef<MediaStream | null>(null);
   const livenessBufferRef = useRef<string[]>([]);
   const livenessIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [livenessCount, setLivenessCount] = useState(0);
 
   // Stable refs for callbacks to avoid re-triggering effects
   const cbRefs = useRef({ onCapture, onPermissionDenied, onStreaming, onPermissionRequested });
@@ -40,13 +42,13 @@ export function CameraCapture({
     return lc.toDataURL('image/jpeg', 0.7);
   }, []);
 
-  const startCamera = useCallback(async (deviceId?: string) => {
-    // Stop existing liveness collection and stream
+  const startCamera = useCallback(async () => {
     if (livenessIntervalRef.current !== null) {
       clearInterval(livenessIntervalRef.current);
       livenessIntervalRef.current = null;
     }
     livenessBufferRef.current = [];
+    setLivenessCount(0);
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -54,8 +56,8 @@ export function CameraCapture({
     cbRefs.current.onPermissionRequested();
     try {
       const constraints: MediaStreamConstraints = {
-        video: deviceId
-          ? { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+        video: initialDeviceId
+          ? { deviceId: { exact: initialDeviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
           : { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       };
@@ -64,21 +66,14 @@ export function CameraCapture({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-      // Auto-select the device that was actually opened
-      const track = stream.getVideoTracks()[0];
-      if (track) {
-        const settings = track.getSettings();
-        if (settings.deviceId && !deviceId) {
-          setSelectedDeviceId(settings.deviceId);
-        }
-      }
       cbRefs.current.onStreaming();
 
-      // Start background frame collection for liveness (350 ms interval, rolling buffer of 3)
+      // Background frame collection for liveness (350 ms interval, rolling buffer of 3)
       livenessIntervalRef.current = setInterval(() => {
         const frame = captureFrame();
         if (frame !== null) {
           livenessBufferRef.current = [...livenessBufferRef.current.slice(-2), frame];
+          setLivenessCount(livenessBufferRef.current.length);
         }
       }, 350);
     } catch (err) {
@@ -90,9 +85,8 @@ export function CameraCapture({
             : 'Failed to access camera. Please try again.';
       cbRefs.current.onPermissionDenied(message);
     }
-  }, []);
+  }, [initialDeviceId, captureFrame]);
 
-  // Start camera on mount
   useEffect(() => {
     startCamera();
     return () => {
@@ -105,11 +99,6 @@ export function CameraCapture({
         streamRef.current = null;
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleDeviceChange = useCallback((deviceId: string) => {
-    setSelectedDeviceId(deviceId);
-    startCamera(deviceId);
   }, [startCamera]);
 
   const handleCapture = useCallback(() => {
@@ -117,10 +106,8 @@ export function CameraCapture({
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    // Grab buffered liveness frames before stopping the stream
     const livenessFrames = [...livenessBufferRef.current];
 
-    // Stop liveness collection
     if (livenessIntervalRef.current !== null) {
       clearInterval(livenessIntervalRef.current);
       livenessIntervalRef.current = null;
@@ -134,7 +121,6 @@ export function CameraCapture({
     ctx.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
 
-    // Stop stream after capture
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -143,13 +129,10 @@ export function CameraCapture({
     cbRefs.current.onCapture(dataUrl, livenessFrames);
   }, []);
 
+  const livenessReady = livenessCount >= 2;
+
   return (
     <div className="camera-capture">
-      <DeviceSelector
-        kind="videoinput"
-        selectedDeviceId={selectedDeviceId}
-        onSelect={handleDeviceChange}
-      />
       <div className="camera-viewport">
         <video
           ref={videoRef}
@@ -163,6 +146,25 @@ export function CameraCapture({
           <div className="face-corners">
             <span /><span /><span /><span />
           </div>
+          {isStreaming && (
+            <div className={`liveness-coaching${livenessReady ? ' liveness-ready' : ''}`}>
+              <div className="liveness-dots">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className={`liveness-dot${
+                      i < livenessCount
+                        ? ' liveness-dot--active'
+                        : !livenessReady
+                          ? ' liveness-dot--collecting'
+                          : ''
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="liveness-text">{getLivenessCoachText(livenessCount)}</span>
+            </div>
+          )}
           <span className="face-guide-label">Position subject's face here</span>
         </div>
         <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -173,10 +175,17 @@ export function CameraCapture({
           className="btn-capture"
           onClick={handleCapture}
           disabled={!isStreaming}
+          title={isStreaming && !livenessReady ? 'Collecting liveness frames…' : 'Capture photo'}
         >
           <span className="capture-ring" />
         </button>
       </div>
     </div>
   );
+}
+
+function getLivenessCoachText(count: number): string {
+  if (count === 0) return 'Look at the camera. Stay still.';
+  if (count === 1) return 'Good. Blink naturally…';
+  return 'Ready — press capture.';
 }
