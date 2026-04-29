@@ -1324,6 +1324,20 @@ body {
   margin: 0 auto;
 }
 
+.auth-check-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 120px;
+  color: var(--gray-600);
+}
+
+.auth-check-card p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
 .btn-full { width: 100%; }
 
 .btn-ghost {

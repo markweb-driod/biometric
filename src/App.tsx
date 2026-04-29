@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EnrollmentFlow } from './components/EnrollmentFlow';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { StaffLogin } from './components/StaffLogin';
-import { getStoredStaffUser, getStoredToken, logoutStaff } from './services/authApi';
+import {
+  getStoredStaffUser,
+  getStoredToken,
+  logoutStaff,
+  validateStoredSession,
+} from './services/authApi';
 
 export default function App() {
+  const [isAuthChecking, setIsAuthChecking] = useState(() => Boolean(getStoredToken()));
   const [staffUser, setStaffUser] = useState<string | null>(() =>
     getStoredToken() ? getStoredStaffUser() ?? 'staff' : null
   );
@@ -13,6 +19,36 @@ export default function App() {
   const [started, setStarted] = useState(false);
 
   const isAuthenticated = Boolean(staffUser && getStoredToken());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const verifySession = async () => {
+      const token = getStoredToken();
+      if (!token) {
+        if (!cancelled) setIsAuthChecking(false);
+        return;
+      }
+
+      const isValid = await validateStoredSession().catch(() => false);
+      if (cancelled) return;
+
+      if (!isValid) {
+        logoutStaff();
+        setStaffUser(null);
+        setStarted(false);
+        setUserId('');
+      }
+
+      setIsAuthChecking(false);
+    };
+
+    verifySession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <>
@@ -32,7 +68,21 @@ export default function App() {
       />
 
       <main className="page-main">
-        {!isAuthenticated ? (
+        {isAuthChecking ? (
+          <>
+            <div className="page-hero">
+              <span className="page-hero-badge">Checking Session</span>
+              <h1>Validating Access</h1>
+              <p>Please wait while we verify your staff authorization token.</p>
+            </div>
+            <div className="page-content-area">
+              <div className="step-content login-card auth-check-card">
+                <span className="spinner" />
+                <p>Validating secure session...</p>
+              </div>
+            </div>
+          </>
+        ) : !isAuthenticated ? (
           <>
             <div className="page-hero">
               <span className="page-hero-badge">Restricted Access</span>
