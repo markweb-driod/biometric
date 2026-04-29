@@ -62,16 +62,22 @@ function skinPixels(count: number): Uint8ClampedArray {
  * Stub window.Image and document.createElement('canvas') so analyzeImageQuality
  * receives exactly the pixel data we supply.
  *
- * @param opts.w   Source image width reported by HTMLImageElement
- * @param opts.h   Source image height
- * @param opts.pixels  Raw pixel data returned by every getImageData call
+ * @param opts.w        Source image width reported by HTMLImageElement
+ * @param opts.h        Source image height
+ * @param opts.pixels   Pixel data returned for face-region getImageData calls
+ * @param opts.fullPixels  Pixel data used for the full-frame (sharpness) call.
+ *                         Defaults to high-variance stripes so blur never errors.
  */
 function stubCanvas(opts: {
   w: number;
   h: number;
   pixels: Uint8ClampedArray;
+  fullPixels?: Uint8ClampedArray;
 }): void {
   const { w, h, pixels } = opts;
+  // Default full-frame data: alternating 80/200 luma stripes → high Laplacian variance.
+  const fullPixels = opts.fullPixels ?? stripedPixels(w * h, 80, 200);
+  let callCount = 0;
 
   // Stub HTMLImageElement
   vi.stubGlobal(
@@ -96,9 +102,13 @@ function stubCanvas(opts: {
         height: 0,
         getContext: () => ({
           drawImage: vi.fn(),
-          getImageData: (_x: number, _y: number, pw: number, ph: number) => ({
-            data: pixels.slice(0, pw * ph * 4),
-          }),
+          getImageData: (_x: number, _y: number, pw: number, ph: number) => {
+            // First call is the full-frame read (sharpness).
+            // Subsequent calls are face-region reads (brightness, skin, etc.).
+            callCount += 1;
+            const src = callCount === 1 ? fullPixels : pixels;
+            return { data: src.slice(0, pw * ph * 4) };
+          },
         }),
       } as unknown as HTMLCanvasElement;
     }
@@ -160,7 +170,12 @@ describe('analyzeImageQuality — brightness checks', () => {
   });
 
   it('flags warning-level too-dark for luma between 32 and 50', async () => {
-    const pixels = greyPixels(640 * 480, 40);
+    // Use striped pixels so sharpness is high (no blur error).
+    // Stripe luma values are 40 and 40 — alternating same colour produces
+    // the desired average of ~40 while avoiding edge-contrast that could
+    // raise a brightness warning for the wrong reason.
+    // Instead use a striped pattern where both values sit inside 32–50.
+    const pixels = stripedPixels(640 * 480, 35, 45);
     const result = await runQuality(pixels);
     const issues = issuesWith(result.issues, 'too-dark');
     expect(issues).toHaveLength(1);
@@ -218,23 +233,24 @@ describe('analyzeImageQuality — pass/fail logic', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('passed = true when no error-severity issues exist', async () => {
-    // Moderate-luma skin-tone pixels: should produce at most warnings.
+    // Striped skin-tone pixels: adequate luma AND high sharpness → no error issues.
+    // Skin R=200 G=150 B=120 luma ≈ 161 (well above 50). Alternating rows give
+    // high Laplacian variance so no blur error fires.
     const pixels = skinPixels(640 * 480);
-    // Override luma to be adequate (≥50) by mixing skin + grey.
-    // The luma of skin (R=200 G=150 B=120) ≈ 0.299×200 + 0.587×150 + 0.114×120 ≈ 161.
-    // This is well above error and warn thresholds.
     const result = await runQuality(pixels);
     // There may be off-center or distance warnings; the key check is passed.
     expect(result.passed).toBe(true);
   });
 
   it('passed = false when any issue has severity error', async () => {
-    const result = await runQuality(greyPixels(640 * 480, 10)); // very dark
+    // Very dark flat pixels → brightness error. Sharpness also triggers error,
+    // but passed = false is set by any one error, so this still passes the test.
+    const result = await runQuality(greyPixels(640 * 480, 10));
     expect(result.passed).toBe(false);
   });
 
-  it('returns empty issues list for an ideal capture', async () => {
-    // Adequate skin-tone centred image with good luma — no issues.
+  it('returns no error-severity issues for an ideal capture', async () => {
+    // Skin-tone pixels: good luma, high sharpness.
     const pixels = skinPixels(640 * 480);
     const result = await runQuality(pixels);
     const errors = result.issues.filter((i) => i.severity === 'error');
