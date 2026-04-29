@@ -45,6 +45,13 @@ export function DeviceSelector({
       navigator.mediaDevices.removeEventListener('devicechange', refresh);
   }, [refresh]);
 
+  // Auto-select the first available device when nothing is selected yet.
+  useEffect(() => {
+    if (!selectedDeviceId && devices.length > 0 && devices[0].deviceId) {
+      onSelect(devices[0].deviceId);
+    }
+  }, [devices, selectedDeviceId, onSelect]);
+
   const selected = devices.find((d) => d.deviceId === selectedDeviceId);
   const label =
     selected?.label ??
