@@ -53,6 +53,7 @@ export type EnrollmentAction =
   | { type: 'FACE_RETRY_SUBMIT' }
   | { type: 'FACE_ADVANCE' }
   | { type: 'FINGERPRINT_DONE' }
+  | { type: 'REVIEW_CONFIRMED' }
   | { type: 'RESET' };
 
 export function enrollmentReducer(
@@ -79,7 +80,7 @@ export function enrollmentReducer(
       };
 
     case 'FACE_RECAPTURE':
-      return { ...state, faceCapture: { status: 'streaming' } };
+      return { ...state, faceCapture: { status: 'idle' } };
 
     case 'FACE_SUBMITTING':
       if (state.faceCapture.status === 'captured') {
@@ -106,6 +107,10 @@ export function enrollmentReducer(
       return {
         ...state,
         faceCapture: { status: 'success' },
+        capturedFaceImageData:
+          state.faceCapture.status === 'submitting'
+            ? state.faceCapture.imageData
+            : state.capturedFaceImageData,
       };
 
     case 'FACE_ADVANCE':
@@ -142,7 +147,10 @@ export function enrollmentReducer(
       };
 
     case 'FINGERPRINT_DONE':
-      return { ...state, fingerprintDone: true, step: 'complete' };
+      return { ...state, fingerprintDone: true, step: 'review' };
+
+    case 'REVIEW_CONFIRMED':
+      return { ...state, step: 'complete' };
 
     case 'RESET':
       return initialEnrollmentState(state.userId);

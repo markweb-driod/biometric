@@ -13,6 +13,7 @@ import { DeviceSelector } from './DeviceSelector';
 const STEPS = [
   { key: 'face-capture', label: 'Face Capture' },
   { key: 'fingerprint', label: 'Fingerprint' },
+  { key: 'review', label: 'Review' },
   { key: 'complete', label: 'Complete' },
 ];
 
@@ -34,6 +35,11 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
   const submittingRef = useRef(false);
   // Background frames collected by CameraCapture for liveness check
   const livenessFramesRef = useRef<string[]>([]);
+  // Camera device selection — must be confirmed before CameraCapture mounts
+  const [cameraSetup, setCameraSetup] = useState<{ deviceId: string; ready: boolean }>({
+    deviceId: '',
+    ready: false,
+  });
 
   const handleCapture = useCallback((imageData: string, livenessFrames: string[]) => {
     livenessFramesRef.current = livenessFrames;
@@ -43,6 +49,7 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
   const handleRecapture = useCallback(() => {
     cameraKeyRef.current += 1;
     livenessFramesRef.current = [];
+    setCameraSetup((prev) => ({ ...prev, ready: false }));
     dispatch({ type: 'FACE_RECAPTURE' });
   }, []);
 
@@ -111,11 +118,22 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
             />
           )}
 
-          {(state.faceCapture.status === 'idle' ||
+          {/* Phase 1: camera device selection (before stream starts) */}
+          {state.faceCapture.status === 'idle' && !cameraSetup.ready && (
+            <CameraSetupCard
+              deviceId={cameraSetup.deviceId}
+              onDeviceSelect={(id) => setCameraSetup((prev) => ({ ...prev, deviceId: id }))}
+              onStart={() => setCameraSetup((prev) => ({ ...prev, ready: true }))}
+            />
+          )}
+
+          {/* Phase 2: active camera — mounts only after device is confirmed */}
+          {((state.faceCapture.status === 'idle' && cameraSetup.ready) ||
             state.faceCapture.status === 'requesting-permission' ||
             state.faceCapture.status === 'streaming') && (
             <CameraCapture
               key={cameraKeyRef.current}
+              initialDeviceId={cameraSetup.deviceId}
               onCapture={handleCapture}
               onPermissionDenied={(error) =>
                 dispatch({ type: 'CAMERA_PERMISSION_DENIED', error })
@@ -204,6 +222,59 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
           </p>
           <StatusBanner type="success" message="Face capture complete." />
           <FingerprintStep onDone={handleFingerprint} />
+        </div>
+      )}
+
+      {/* ── Review Step ── */}
+      {state.step === 'review' && (
+        <div className="step-content">
+          <h2>Review &amp; Confirm</h2>
+          <p className="step-description">
+            Verify all captured biometric data before finalising enrollment for{' '}
+            <strong>{state.userId}</strong>.
+          </p>
+
+          <div className="review-grid">
+            <div className="review-bio-item">
+              <span className="review-bio-label">Face Capture</span>
+              {state.capturedFaceImageData ? (
+                <div className="review-face-thumb">
+                  <img src={state.capturedFaceImageData} alt="Captured face" />
+                </div>
+              ) : (
+                <div className="review-fp-thumb"><ReviewFaceIcon /></div>
+              )}
+              <span className="review-status-badge review-status-ok">✓ Captured &amp; Enrolled</span>
+            </div>
+
+            <div className="review-bio-item">
+              <span className="review-bio-label">Fingerprint</span>
+              <div className="review-fp-thumb"><ReviewFingerprintIcon /></div>
+              <span className="review-status-badge review-status-ok">✓ Scan Complete</span>
+            </div>
+          </div>
+
+          <div className="review-id-row">
+            <span className="review-id-label">Subject ID</span>
+            <span className="review-id-value">{state.userId}</span>
+          </div>
+
+          <div className="review-actions">
+            <button
+              type="button"
+              className="btn btn-primary btn-full"
+              onClick={() => dispatch({ type: 'REVIEW_CONFIRMED' })}
+            >
+              Confirm Enrollment
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-full cancel-link"
+              onClick={onCancel}
+            >
+              Cancel &amp; Start Over
+            </button>
+          </div>
         </div>
       )}
 
