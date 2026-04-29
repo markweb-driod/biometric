@@ -53,3 +53,22 @@ export function logoutStaff(): void {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
 }
+
+export async function validateStoredSession(): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) return false;
+
+  const response = await fetch(`${API_BASE}/students/?skip=0&limit=1`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.status === 401) {
+    return false;
+  }
+
+  // Treat other non-2xx responses as invalid for secure fail-closed behavior.
+  return response.ok;
+}
