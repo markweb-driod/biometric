@@ -16,10 +16,27 @@ import type { QualityIssue } from './imageQuality';
 function greyPixels(count: number, luma: number): Uint8ClampedArray {
   const data = new Uint8ClampedArray(count * 4);
   for (let i = 0; i < count * 4; i += 4) {
-    data[i] = luma;     // R
-    data[i + 1] = luma; // G
-    data[i + 2] = luma; // B
-    data[i + 3] = 255;  // A
+    data[i] = luma;
+    data[i + 1] = luma;
+    data[i + 2] = luma;
+    data[i + 3] = 255;
+  }
+  return data;
+}
+
+/**
+ * Alternating dark/light stripes so the Laplacian variance is high (sharp).
+ * Each pair of consecutive pixels swaps between `low` and `high` luma values,
+ * producing maximum edge signal and a well-above-threshold sharpness score.
+ */
+function stripedPixels(count: number, low = 80, high = 200): Uint8ClampedArray {
+  const data = new Uint8ClampedArray(count * 4);
+  for (let i = 0; i < count * 4; i += 4) {
+    const px = (i / 4) % 2 === 0 ? low : high;
+    data[i] = px;
+    data[i + 1] = px;
+    data[i + 2] = px;
+    data[i + 3] = 255;
   }
   return data;
 }

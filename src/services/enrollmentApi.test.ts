@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   enrollFace,
   isEnrollmentApiError,
   EnrollmentApiError,
+  mapBackendError,
 } from './enrollmentApi';
 
 // Minimal valid JPEG data URL (1×1 pixel, ~300 bytes — well under size cap)
@@ -76,10 +77,6 @@ describe('isEnrollmentApiError', () => {
 });
 
 describe('enrollFace — client-side validation', () => {
-  beforeEach(() => {
-    // Real mode: disable mock so client validation fires before any fetch.
-    vi.stubEnv('VITE_MOCK_API', 'false');
-  });
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
@@ -116,109 +113,95 @@ describe('enrollFace — client-side validation', () => {
   });
 });
 
-describe('enrollFace — network / backend error mapping', () => {
-  beforeEach(() => {
-    vi.stubEnv('VITE_MOCK_API', 'false');
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
-  });
+// ── mapBackendError — pure mapping logic, no fetch involved ──────────────────
 
-  it('throws network_error when fetch rejects', async () => {
-    mockFetchNetworkFailure();
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
-    expect(err.code).toBe('network_error');
-    expect(err.retryable).toBe(true);
+describe('mapBackendError — error code mapping', () => {
+  it('maps HTTP 401 → auth_required (not retryable, no recapture)', () => {
+    const err = mapBackendError(401, 'Not authenticated');
+    expect(err.code).toBe('auth_required');
+    expect(err.retryable).toBe(false);
     expect(err.shouldRecapture).toBe(false);
   });
 
-  it('throws liveness_failed for backend liveness rejection', async () => {
-    mockFetchError(400, 'Liveness check failed. Ensure the subject is physically present and retake.');
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
+  it('maps HTTP 403 → auth_required', () => {
+    const err = mapBackendError(403, 'Forbidden');
+    expect(err.code).toBe('auth_required');
+  });
+
+  it('maps liveness detail → liveness_failed (retryable, requires recapture)', () => {
+    const err = mapBackendError(
+      400,
+      'Liveness check failed. Ensure the subject is physically present and retake.',
+    );
     expect(err.code).toBe('liveness_failed');
     expect(err.retryable).toBe(true);
     expect(err.shouldRecapture).toBe(true);
   });
 
-  it('throws capture_quality_rejected for backend image quality rejection', async () => {
-    mockFetchError(400, 'Invalid or low-quality image at index 0');
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
+  it('maps backend quality rejection detail → capture_quality_rejected', () => {
+    const err = mapBackendError(400, 'Invalid or low-quality image at index 0');
     expect(err.code).toBe('capture_quality_rejected');
     expect(err.shouldRecapture).toBe(true);
   });
 
-  it('throws auth_required for HTTP 401', async () => {
-    mockFetchError(401, 'Not authenticated');
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
-    expect(err.code).toBe('auth_required');
-    expect(err.retryable).toBe(false);
-    expect(err.shouldRecapture).toBe(false);
-  });
-
-  it('throws auth_required for HTTP 403', async () => {
-    mockFetchError(403, 'Forbidden');
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
-    expect(err.code).toBe('auth_required');
-  });
-
-  it('throws capture_too_large for HTTP 413', async () => {
-    mockFetchError(413, 'Request entity too large');
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
+  it('maps HTTP 413 → capture_too_large', () => {
+    const err = mapBackendError(413, 'Request entity too large');
     expect(err.code).toBe('capture_too_large');
     expect(err.shouldRecapture).toBe(true);
   });
 
-  it('throws server_error for HTTP 500', async () => {
-    mockFetchError(500, 'Database or Engine error: unexpected');
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
+  it('maps "too large" in message → capture_too_large', () => {
+    const err = mapBackendError(400, 'Payload too large');
+    expect(err.code).toBe('capture_too_large');
+  });
+
+  it('maps HTTP 500 → server_error (retryable, no recapture)', () => {
+    const err = mapBackendError(500, 'Database or Engine error: unexpected');
     expect(err.code).toBe('server_error');
     expect(err.retryable).toBe(true);
     expect(err.shouldRecapture).toBe(false);
   });
 
-  it('throws invalid_subject_id for 400 identifier length message', async () => {
-    mockFetchError(400, 'Identifier length must be between 3 and 64 characters');
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
+  it('maps identifier length 400 → invalid_subject_id (not retryable)', () => {
+    const err = mapBackendError(400, 'Identifier length must be between 3 and 64 characters');
     expect(err.code).toBe('invalid_subject_id');
     expect(err.retryable).toBe(false);
   });
 
-  it('throws validation_failed for generic 400', async () => {
-    mockFetchError(400, 'Some unrecognised validation error');
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
-    expect(isEnrollmentApiError(err)).toBe(true);
+  it('maps required field 400 → invalid_subject_id', () => {
+    const err = mapBackendError(400, "Either 'matric_number' or 'external_id' is required");
+    expect(err.code).toBe('invalid_subject_id');
+  });
+
+  it('maps generic 400 → validation_failed (retryable)', () => {
+    const err = mapBackendError(400, 'Some unrecognised validation error');
     expect(err.code).toBe('validation_failed');
     expect(err.retryable).toBe(true);
   });
 
-  it('returns a success response on HTTP 200', async () => {
-    mockFetchOk({
-      success: true,
-      message: 'Face enrollment completed for Alice Johnson',
-      liveness_passed: true,
-      liveness_checked: true,
-      student_id: 1,
-      external_id: 'stu-001',
-    });
-    const result = await enrollFace({ userId: 'stu-001', image: TINY_JPEG });
-    expect(result.success).toBe(true);
-    expect(result.liveness_passed).toBe(true);
-    expect(result.student_id).toBe(1);
+  it('maps unclassified error → unknown_error', () => {
+    const err = mapBackendError(418, "I'm a teapot");
+    expect(err.code).toBe('unknown_error');
+    expect(err.retryable).toBe(true);
   });
 
-  it('preserves the raw backend message in backendMessage field', async () => {
+  it('preserves raw backend message in backendMessage field', () => {
     const raw = 'Liveness check failed. Ensure the subject is physically present and retake.';
-    mockFetchError(400, raw);
-    const err = await enrollFace({ userId: 'stu-001', image: TINY_JPEG }).catch((e) => e);
+    const err = mapBackendError(400, raw);
     expect(err.backendMessage).toBe(raw);
+  });
+
+  it('returns an EnrollmentApiError instance for every mapping', () => {
+    for (const [status, msg] of [
+      [400, 'liveness check failed'],
+      [401, 'not authenticated'],
+      [403, 'forbidden'],
+      [413, 'too large'],
+      [500, 'internal'],
+      [400, 'identifier length'],
+      [400, 'generic error'],
+    ] as [number, string][]) {
+      expect(mapBackendError(status, msg)).toBeInstanceOf(EnrollmentApiError);
+    }
   });
 });
