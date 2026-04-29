@@ -166,7 +166,7 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([out], { type: mimeType });
 }
 
-function mapBackendError(status: number, backendMessage: string): EnrollmentApiError {
+export function mapBackendError(status: number, backendMessage: string): EnrollmentApiError {
   const normalized = backendMessage.toLowerCase();
 
   if (status === 401 || status === 403) {
