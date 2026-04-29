@@ -204,6 +204,38 @@ body {
   letter-spacing: -0.01em;
 }
 
+.navbar-staff {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.55rem;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-full);
+  background: var(--white);
+}
+
+.navbar-staff-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-400);
+  font-weight: 650;
+}
+
+.navbar-staff-user {
+  font-size: 0.72rem;
+  color: var(--gray-700);
+  font-weight: 600;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navbar-logout {
+  border: 1px solid var(--gray-200);
+}
+
 /* ═══════════════════════════════════════════════════
    PAGE LAYOUT
    ═══════════════════════════════════════════════════ */
@@ -982,6 +1014,10 @@ body {
   font-weight: 500;
 }
 
+.status-banner .btn-small {
+  margin-left: auto;
+}
+
 /* ═══════════════════════════════════════════════════
    FINGERPRINT PLACEHOLDER
    ═══════════════════════════════════════════════════ */
@@ -1262,6 +1298,8 @@ body {
   .camera-controls { gap: 1.5rem; }
   .navbar-nav { display: none; }
   .navbar-inner { padding: 0 0.75rem; height: 50px; }
+  .navbar-staff-user { max-width: 70px; }
+  .navbar-staff-label { display: none; }
   .features-row { grid-template-columns: 1fr; gap: 0.5rem; }
   .feature-card { flex-direction: row; text-align: left; padding: 0.85rem; }
 
@@ -1275,6 +1313,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.login-shell {
+  width: 100%;
+}
+
+.login-card {
+  max-width: 440px;
+  margin: 0 auto;
 }
 
 .btn-full { width: 100%; }
@@ -1399,4 +1446,13 @@ body {
 .quality-override-btn:hover {
   color: var(--gray-600);
   background: none;
+}
+
+.preview-helper-message {
+  width: 100%;
+  max-width: 420px;
+  font-size: 0.74rem;
+  color: var(--gray-500);
+  line-height: 1.45;
+  margin-top: -0.45rem;
 }

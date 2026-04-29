@@ -1,3 +1,5 @@
+import type { EnrollmentApiErrorCode } from '../services/enrollmentApi';
+
 export type EnrollmentStep = 'face-capture' | 'fingerprint' | 'complete';
 
 export type CaptureState =
@@ -8,7 +10,14 @@ export type CaptureState =
   | { status: 'captured'; imageData: string }
   | { status: 'submitting'; imageData: string }
   | { status: 'success' }
-  | { status: 'error'; error: string; imageData: string };
+  | {
+    status: 'error';
+    error: string;
+    imageData: string;
+    backendCode?: EnrollmentApiErrorCode;
+    retryable: boolean;
+    shouldRecapture: boolean;
+  };
 
 export interface EnrollmentState {
   step: EnrollmentStep;
@@ -32,7 +41,13 @@ export type EnrollmentAction =
   | { type: 'FACE_RECAPTURE' }
   | { type: 'FACE_SUBMITTING' }
   | { type: 'FACE_SUBMIT_SUCCESS' }
-  | { type: 'FACE_SUBMIT_ERROR'; error: string }
+  | {
+    type: 'FACE_SUBMIT_ERROR';
+    error: string;
+    backendCode?: EnrollmentApiErrorCode;
+    retryable?: boolean;
+    shouldRecapture?: boolean;
+  }
   | { type: 'FACE_RETRY_SUBMIT' }
   | { type: 'FACE_ADVANCE' }
   | { type: 'FINGERPRINT_DONE' }
@@ -108,6 +123,9 @@ export function enrollmentReducer(
           status: 'error',
           error: action.error,
           imageData: state.faceCapture.imageData,
+          backendCode: action.backendCode,
+          retryable: action.retryable ?? true,
+          shouldRecapture: action.shouldRecapture ?? false,
         },
       };
 

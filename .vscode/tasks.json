@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Vite Dev Server",
+			"type": "shell",
+			"command": "npx vite",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

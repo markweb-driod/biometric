@@ -37,6 +37,8 @@ export interface QualityResult {
 }
 
 const SAMPLE_W = 180;
+const HARD_MIN_SOURCE_WIDTH = 240;
+const HARD_MIN_SOURCE_HEIGHT = 200;
 const MIN_SOURCE_WIDTH = 320;
 const MIN_SOURCE_HEIGHT = 240;
 
@@ -72,7 +74,14 @@ export function analyzeImageQuality(dataUrl: string): Promise<QualityResult> {
     img.onload = () => {
       const issues: QualityIssue[] = [];
 
-      if (img.width < MIN_SOURCE_WIDTH || img.height < MIN_SOURCE_HEIGHT) {
+      if (img.width < HARD_MIN_SOURCE_WIDTH || img.height < HARD_MIN_SOURCE_HEIGHT) {
+        issues.push({
+          code: 'low-resolution',
+          severity: 'error',
+          label: 'Image resolution is too low',
+          suggestion: 'Use a higher-resolution camera before capturing again.',
+        });
+      } else if (img.width < MIN_SOURCE_WIDTH || img.height < MIN_SOURCE_HEIGHT) {
         issues.push({
           code: 'low-resolution',
           severity: 'warning',
@@ -178,7 +187,7 @@ export function analyzeImageQuality(dataUrl: string): Promise<QualityResult> {
       if (skin.ratio < T.skinRatio.notVisible) {
         issues.push({
           code: 'face-not-visible',
-          severity: 'warning',
+          severity: 'error',
           label: 'Face is not clearly visible',
           suggestion: "Ensure the subject's full face is inside the oval and is not obscured by hair, mask, or accessories.",
         });

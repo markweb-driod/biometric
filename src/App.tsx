@@ -2,17 +2,50 @@ import { useState } from 'react';
 import { EnrollmentFlow } from './components/EnrollmentFlow';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
+import { StaffLogin } from './components/StaffLogin';
+import { getStoredStaffUser, getStoredToken, logoutStaff } from './services/authApi';
 
 export default function App() {
+  const [staffUser, setStaffUser] = useState<string | null>(() =>
+    getStoredToken() ? getStoredStaffUser() ?? 'staff' : null
+  );
   const [userId, setUserId] = useState('');
   const [started, setStarted] = useState(false);
 
+  const isAuthenticated = Boolean(staffUser && getStoredToken());
+
   return (
     <>
-      <Navbar userId={started ? userId : undefined} />
+      <Navbar
+        userId={started ? userId : undefined}
+        staffUser={staffUser ?? undefined}
+        onLogout={
+          isAuthenticated
+            ? () => {
+                logoutStaff();
+                setStarted(false);
+                setUserId('');
+                setStaffUser(null);
+              }
+            : undefined
+        }
+      />
 
       <main className="page-main">
-        {!started ? (
+        {!isAuthenticated ? (
+          <>
+            <div className="page-hero">
+              <span className="page-hero-badge">Restricted Access</span>
+              <h1>Capture Portal Login</h1>
+              <p>
+                Access is limited to authorized staff. Authenticate to proceed with biometric capture and validation.
+              </p>
+            </div>
+            <div className="page-content-area">
+              <StaffLogin onSuccess={setStaffUser} />
+            </div>
+          </>
+        ) : !started ? (
           <>
             <div className="page-hero">
               <span className="page-hero-badge">Biometric System</span>

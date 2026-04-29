@@ -3,7 +3,7 @@ import {
   enrollmentReducer,
   initialEnrollmentState,
 } from '../state/enrollmentReducer';
-import { enrollFace } from '../services/enrollmentApi';
+import { enrollFace, isEnrollmentApiError } from '../services/enrollmentApi';
 import { CameraCapture } from './CameraCapture';
 import { FacePreview } from './FacePreview';
 import { StatusBanner } from './StatusBanner';
@@ -54,9 +54,14 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
       await enrollFace({ userId, image: imageData, livenessFrames: livenessFramesRef.current });
       dispatch({ type: 'FACE_SUBMIT_SUCCESS' });
     } catch (err) {
+      const fallbackMessage = err instanceof Error ? err.message : 'Submission failed';
+      const apiError = isEnrollmentApiError(err) ? err : null;
       dispatch({
         type: 'FACE_SUBMIT_ERROR',
-        error: err instanceof Error ? err.message : 'Submission failed',
+        error: apiError?.message ?? fallbackMessage,
+        backendCode: apiError?.code,
+        retryable: apiError?.retryable,
+        shouldRecapture: apiError?.shouldRecapture,
       });
     } finally {
       submittingRef.current = false;
@@ -76,6 +81,11 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
   const handleFingerprint = useCallback(() => {
     dispatch({ type: 'FINGERPRINT_DONE' });
   }, []);
+
+  const errorHint =
+    state.faceCapture.status === 'error'
+      ? getCaptureErrorHint(state.faceCapture.backendCode)
+      : undefined;
 
   return (
     <div className="enrollment-flow">
@@ -139,7 +149,23 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
                 onRecapture={handleRecapture}
                 onSubmit={handleRetrySubmit}
                 isSubmitting={false}
+                submitLabel="Retry Submission"
+                disableSubmit={state.faceCapture.shouldRecapture}
+                helperMessage={
+                  state.faceCapture.shouldRecapture
+                    ? 'This capture must be retaken before retrying submission.'
+                    : errorHint
+                }
               />
+              {!state.faceCapture.shouldRecapture && state.faceCapture.retryable && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-full"
+                  onClick={handleRetrySubmit}
+                >
+                  Retry Submission
+                </button>
+              )}
             </>
           )}
 
@@ -205,6 +231,21 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
       )}
     </div>
   );
+}
+
+function getCaptureErrorHint(code?: string): string | undefined {
+  switch (code) {
+    case 'liveness_failed':
+      return 'Have the subject blink or move slightly while streaming, then recapture.';
+    case 'capture_quality_rejected':
+      return 'Improve lighting and keep the full face inside the oval before recapturing.';
+    case 'network_error':
+      return 'Network issue detected. You can retry submission with the same capture.';
+    case 'server_error':
+      return 'Temporary server issue. Retry now or recapture if repeated failures continue.';
+    default:
+      return undefined;
+  }
 }
 
 function FingerprintStep({ onDone }: { onDone: () => void }) {

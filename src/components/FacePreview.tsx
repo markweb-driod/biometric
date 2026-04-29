@@ -7,6 +7,9 @@ interface FacePreviewProps {
   onRecapture: () => void;
   onSubmit: () => void;
   isSubmitting: boolean;
+  submitLabel?: string;
+  disableSubmit?: boolean;
+  helperMessage?: string;
 }
 
 type QualityPhase =
@@ -18,6 +21,9 @@ export function FacePreview({
   onRecapture,
   onSubmit,
   isSubmitting,
+  submitLabel = 'Use This Photo',
+  disableSubmit = false,
+  helperMessage,
 }: FacePreviewProps) {
   const [quality, setQuality] = useState<QualityPhase>({ phase: 'checking' });
   const [allowOverride, setAllowOverride] = useState(false);
@@ -39,7 +45,11 @@ export function FacePreview({
   }, [imageData]);
 
   const hasErrors = quality.phase === 'done' && !quality.passed;
-  const submitBlocked = hasErrors && !allowOverride;
+  const submitBlocked = disableSubmit || (hasErrors && !allowOverride);
+  const blockingIssueCount =
+    quality.phase === 'done'
+      ? quality.issues.filter((issue) => issue.severity === 'error').length
+      : 0;
 
   return (
     <div className="face-preview">
@@ -71,9 +81,13 @@ export function FacePreview({
               }`}
             >
               {quality.passed ? <QualityWarnIcon /> : <QualityErrorIcon />}
-              {quality.issues.length === 1
-                ? '1 issue detected'
-                : `${quality.issues.length} issues detected`}
+              {quality.passed
+                ? quality.issues.length === 1
+                  ? '1 warning detected'
+                  : `${quality.issues.length} warnings detected`
+                : blockingIssueCount === 1
+                  ? '1 blocking issue detected'
+                  : `${blockingIssueCount} blocking issues detected`}
             </span>
             <ul className="quality-issue-list">
               {quality.issues.map((issue) => (
@@ -113,13 +127,15 @@ export function FacePreview({
             </>
           ) : (
             <>
-              <CheckIcon /> Use This Photo
+              <CheckIcon /> {submitLabel}
             </>
           )}
         </button>
       </div>
 
-      {hasErrors && !allowOverride && !isSubmitting && (
+      {helperMessage && <p className="preview-helper-message">{helperMessage}</p>}
+
+      {hasErrors && !allowOverride && !isSubmitting && !disableSubmit && (
         <button
           type="button"
           className="btn btn-ghost quality-override-btn"
