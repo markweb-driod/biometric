@@ -257,19 +257,19 @@ describe('FACE_RETRY_SUBMIT', () => {
   });
 });
 
-// ── Recapture — resets to streaming without session loss ──────────────────────
+// ── Recapture — resets to idle without session loss ────────────────────────────
 
 describe('FACE_RECAPTURE', () => {
-  it('returns to streaming state from captured', () => {
+  it('returns to idle state from captured', () => {
     let s = toCaptured();
     s = dispatch(s, { type: 'FACE_RECAPTURE' });
-    expect(s.faceCapture.status).toBe('streaming');
+    expect(s.faceCapture.status).toBe('idle');
   });
 
-  it('returns to streaming state from error', () => {
+  it('returns to idle state from error', () => {
     let s = toError();
     s = dispatch(s, { type: 'FACE_RECAPTURE' });
-    expect(s.faceCapture.status).toBe('streaming');
+    expect(s.faceCapture.status).toBe('idle');
   });
 
   it('preserves userId across recapture', () => {
@@ -297,12 +297,12 @@ describe('FACE_ADVANCE', () => {
 });
 
 describe('FINGERPRINT_DONE', () => {
-  it('advances fingerprint → complete', () => {
+  it('advances fingerprint → review', () => {
     let s = toSubmitting();
     s = dispatch(s, { type: 'FACE_SUBMIT_SUCCESS' });
     s = dispatch(s, { type: 'FACE_ADVANCE' });
     s = dispatch(s, { type: 'FINGERPRINT_DONE' });
-    expect(s.step).toBe('complete');
+    expect(s.step).toBe('review');
     expect(s.fingerprintDone).toBe(true);
   });
 });

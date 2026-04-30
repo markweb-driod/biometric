@@ -53,11 +53,13 @@ export function DeviceSelector({
   }, [devices, selectedDeviceId, onSelect]);
 
   const selected = devices.find((d) => d.deviceId === selectedDeviceId);
+  // Before camera permission is granted, enumerateDevices() returns no entries.
+  // Show a helpful default label rather than "No devices found" which looks like a failure.
   const label =
     selected?.label ??
     (devices.length > 0
       ? 'Select device…'
-      : 'No devices found');
+      : 'Default camera');
 
   const icon =
     kind === 'videoinput' ? <CameraIcon /> : <FingerprintDeviceIcon />;
@@ -68,7 +70,7 @@ export function DeviceSelector({
         type="button"
         className="device-selector-trigger"
         onClick={() => setOpen((v) => !v)}
-        disabled={disabled || devices.length === 0}
+        disabled={disabled}
       >
         <span className="device-selector-icon">{icon}</span>
         <span className="device-selector-label">{label}</span>

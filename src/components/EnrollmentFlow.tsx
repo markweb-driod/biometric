@@ -40,6 +40,10 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
     deviceId: '',
     ready: false,
   });
+  // Liveness tracking — mirrored from CameraCapture for the side panel
+  const [livenessCount, setLivenessCount] = useState(0);
+  const [hasMotionEvidence, setHasMotionEvidence] = useState(false);
+  const livenessReady = livenessCount >= 3 && hasMotionEvidence;
 
   const handleCapture = useCallback((imageData: string, livenessFrames: string[]) => {
     livenessFramesRef.current = livenessFrames;
@@ -75,6 +79,16 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
     }
   }, [userId]);
 
+  // Reset the submit guard whenever the capture state goes back to 'error'
+  // so that a retry is never silently blocked by a stale ref.
+  const prevStatusRef = useRef<string>('');
+  if (state.faceCapture.status !== prevStatusRef.current) {
+    prevStatusRef.current = state.faceCapture.status;
+    if (state.faceCapture.status === 'error') {
+      submittingRef.current = false;
+    }
+  }
+
   const handleSubmit = useCallback(() => {
     if (state.faceCapture.status !== 'captured') return;
     doSubmit(state.faceCapture.imageData);
@@ -100,68 +114,67 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
 
       {/* ── Face Capture Step ── */}
       {state.step === 'face-capture' && (
-        <div className="step-content">
-          <h2>Face Capture</h2>
-          <p className="step-description">
-            Position the subject's face within the oval guide and ensure good lighting before capturing.
-          </p>
+        <div className="capture-layout">
+          {/* Left: Camera Area */}
+          <div className="capture-layout-camera">
+            {state.faceCapture.status === 'requesting-permission' && (
+              <div className="capture-camera-placeholder">
+                <span className="spinner spinner-large" />
+                <p>Requesting camera access…</p>
+              </div>
+            )}
 
-          {state.faceCapture.status === 'requesting-permission' && (
-            <StatusBanner type="info" message="Requesting camera access…" />
-          )}
+            {state.faceCapture.status === 'permission-denied' && (
+              <div className="capture-camera-placeholder capture-camera-error">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+                <p>{state.faceCapture.error}</p>
+                <button type="button" className="btn btn-primary" onClick={handleRecapture}>Retry Camera</button>
+              </div>
+            )}
 
-          {state.faceCapture.status === 'permission-denied' && (
-            <StatusBanner
-              type="error"
-              message={state.faceCapture.error}
-              onRetry={handleRecapture}
-            />
-          )}
+            {state.faceCapture.status === 'idle' && !cameraSetup.ready && (
+              <div className="capture-camera-placeholder">
+                <div className="capture-placeholder-icon">
+                  <CameraSetupIcon />
+                </div>
+                <p className="capture-placeholder-title">Camera Offline</p>
+                <p className="capture-placeholder-hint">Select a device and start the camera to begin.</p>
+              </div>
+            )}
 
-          {/* Phase 1: camera device selection (before stream starts) */}
-          {state.faceCapture.status === 'idle' && !cameraSetup.ready && (
-            <CameraSetupCard
-              deviceId={cameraSetup.deviceId}
-              onDeviceSelect={(id) => setCameraSetup((prev) => ({ ...prev, deviceId: id }))}
-              onStart={() => setCameraSetup((prev) => ({ ...prev, ready: true }))}
-            />
-          )}
-
-          {/* Phase 2: active camera — mounts only after device is confirmed */}
-          {((state.faceCapture.status === 'idle' && cameraSetup.ready) ||
-            state.faceCapture.status === 'requesting-permission' ||
-            state.faceCapture.status === 'streaming') && (
-            <CameraCapture
-              key={cameraKeyRef.current}
-              initialDeviceId={cameraSetup.deviceId}
-              onCapture={handleCapture}
-              onPermissionDenied={(error) =>
-                dispatch({ type: 'CAMERA_PERMISSION_DENIED', error })
-              }
-              onStreaming={() => dispatch({ type: 'CAMERA_STREAMING' })}
-              onPermissionRequested={() =>
-                dispatch({ type: 'CAMERA_PERMISSION_REQUESTED' })
-              }
-              isStreaming={state.faceCapture.status === 'streaming'}
-            />
-          )}
-
-          {(state.faceCapture.status === 'captured' ||
-            state.faceCapture.status === 'submitting') && (
-            <FacePreview
-              imageData={state.faceCapture.imageData}
-              onRecapture={handleRecapture}
-              onSubmit={handleSubmit}
-              isSubmitting={state.faceCapture.status === 'submitting'}
-            />
-          )}
-
-          {state.faceCapture.status === 'error' && (
-            <>
-              <StatusBanner
-                type="error"
-                message={state.faceCapture.error}
+            {((state.faceCapture.status === 'idle' && cameraSetup.ready) ||
+              state.faceCapture.status === 'requesting-permission' ||
+              state.faceCapture.status === 'streaming') && (
+              <CameraCapture
+                key={cameraKeyRef.current}
+                initialDeviceId={cameraSetup.deviceId}
+                onCapture={handleCapture}
+                onPermissionDenied={(error) =>
+                  dispatch({ type: 'CAMERA_PERMISSION_DENIED', error })
+                }
+                onStreaming={() => dispatch({ type: 'CAMERA_STREAMING' })}
+                onPermissionRequested={() =>
+                  dispatch({ type: 'CAMERA_PERMISSION_REQUESTED' })
+                }
+                onLivenessUpdate={(count, hasMotion) => {
+                  setLivenessCount(count);
+                  setHasMotionEvidence(hasMotion);
+                }}
+                isStreaming={state.faceCapture.status === 'streaming'}
               />
+            )}
+
+            {(state.faceCapture.status === 'captured' ||
+              state.faceCapture.status === 'submitting') && (
+              <FacePreview
+                imageData={state.faceCapture.imageData}
+                onRecapture={handleRecapture}
+                onSubmit={handleSubmit}
+                isSubmitting={state.faceCapture.status === 'submitting'}
+              />
+            )}
+
+            {state.faceCapture.status === 'error' && (
               <FacePreview
                 imageData={state.faceCapture.imageData}
                 onRecapture={handleRecapture}
@@ -175,42 +188,101 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
                     : errorHint
                 }
               />
-              {!state.faceCapture.shouldRecapture && state.faceCapture.retryable && (
+            )}
+
+            {state.faceCapture.status === 'success' && (
+              <div className="capture-camera-placeholder capture-camera-success">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
+                <p className="capture-placeholder-title">Face Enrolled Successfully</p>
+              </div>
+            )}
+          </div>
+
+          {/* Right: Controls & Info Panel */}
+          <div className="capture-layout-panel">
+            <div className="capture-panel-header">
+              <h2>Face Capture</h2>
+              <p>Enrolling <strong>{userId}</strong></p>
+            </div>
+
+            {state.faceCapture.status === 'error' && (
+              <StatusBanner type="error" message={state.faceCapture.error} />
+            )}
+
+            {/* Device selector — before camera starts */}
+            {state.faceCapture.status === 'idle' && !cameraSetup.ready && (
+              <div className="capture-panel-section">
+                <span className="capture-panel-label">Camera Device</span>
+                <DeviceSelector
+                  kind="videoinput"
+                  selectedDeviceId={cameraSetup.deviceId}
+                  onSelect={(id) => setCameraSetup((prev) => ({ ...prev, deviceId: id }))}
+                />
                 <button
                   type="button"
-                  className="btn btn-secondary btn-full"
-                  onClick={handleRetrySubmit}
+                  className="btn btn-primary btn-full"
+                  onClick={() => setCameraSetup((prev) => ({ ...prev, ready: true }))}
+                  style={{ marginTop: '0.75rem' }}
                 >
-                  Retry Submission
+                  Start Camera
                 </button>
-              )}
-            </>
-          )}
+              </div>
+            )}
 
-          {state.faceCapture.status === 'success' && (
-            <>
-              <StatusBanner type="success" message="Face captured successfully!" />
-              <button
-                type="button"
-                className="btn btn-primary btn-full"
-                onClick={() => dispatch({ type: 'FACE_ADVANCE' })}
-              >
-                Continue to Fingerprint
-              </button>
-            </>
-          )}
+            {/* Liveness guidance — while camera is streaming */}
+            {state.faceCapture.status === 'streaming' && (
+              <div className="capture-panel-section">
+                <span className="capture-panel-label">Active Liveness</span>
+                <div className="capture-panel-steps">
+                  {['Center face in the oval', 'Ask for one natural blink', 'Ask for a slight head turn'].map((step, index) => {
+                    const livenessStepIdx = Math.min(2, hasMotionEvidence ? 2 : livenessCount);
+                    const isComplete = index < livenessStepIdx || (index === 2 && livenessReady);
+                    const isCurrent = !isComplete && index === livenessStepIdx;
+                    return (
+                      <div key={step} className={`capture-step-item${isComplete ? ' is-done' : ''}${isCurrent ? ' is-active' : ''}`}>
+                        <span className="capture-step-num">{isComplete ? '✓' : index + 1}</span>
+                        <span>{step}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className={`capture-readiness${livenessReady ? ' is-ready' : ''}`}>
+                  {livenessReady ? '● Ready to capture' : '○ Awaiting motion proof…'}
+                </div>
+              </div>
+            )}
+
+            {/* Tips */}
+            {(state.faceCapture.status === 'idle' || state.faceCapture.status === 'streaming') && (
+              <div className="capture-panel-section capture-panel-tips">
+                <span className="capture-panel-label">Tips</span>
+                <ul>
+                  <li>Ensure adequate, even lighting on the face</li>
+                  <li>No sunglasses, hats, or face coverings</li>
+                  <li>Capture button unlocks after liveness check</li>
+                </ul>
+              </div>
+            )}
+
+            {/* Success action */}
+            {state.faceCapture.status === 'success' && (
+              <div className="capture-panel-section">
+                <StatusBanner type="success" message="Face captured and enrolled!" />
+                <button
+                  type="button"
+                  className="btn btn-primary btn-full"
+                  onClick={() => dispatch({ type: 'FACE_ADVANCE' })}
+                >
+                  Continue to Fingerprint →
+                </button>
+              </div>
+            )}
+
+            <button type="button" className="btn btn-ghost cancel-link" onClick={onCancel}>
+              Cancel Enrollment
+            </button>
+          </div>
         </div>
-      )}
-
-      {/* ── Face Capture Cancel ── */}
-      {state.step === 'face-capture' && (
-        <button
-          type="button"
-          className="btn btn-ghost cancel-link"
-          onClick={onCancel}
-        >
-          Cancel Enrollment
-        </button>
       )}
 
       {/* ── Fingerprint Step (placeholder) ── */}
@@ -306,7 +378,7 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
 
 function getCaptureErrorHint(code?: string): string | undefined {  switch (code) {
     case 'liveness_failed':
-      return 'Have the subject blink or move slightly while streaming, then recapture.';
+  return 'Retake the session and make sure the subject blinks once and turns slightly before capture unlocks.';
     case 'capture_quality_rejected':
       return 'Improve lighting and keep the full face inside the oval before recapturing.';
     case 'network_error':
@@ -355,41 +427,7 @@ function FingerprintStep({ onDone }: { onDone: () => void }) {
   );
 }
 
-// ── Camera Setup Card ──────────────────────────────────────────────────────────
 
-function CameraSetupCard({
-  deviceId,
-  onDeviceSelect,
-  onStart,
-}: {
-  deviceId: string;
-  onDeviceSelect: (id: string) => void;
-  onStart: () => void;
-}) {
-  return (
-    <div className="camera-setup-card">
-      <div className="camera-setup-icon">
-        <CameraSetupIcon />
-      </div>
-      <p className="camera-setup-desc">
-        Choose the camera to use for this capture session, then press{' '}
-        <strong>Start Camera</strong>.
-      </p>
-      <DeviceSelector
-        kind="videoinput"
-        selectedDeviceId={deviceId}
-        onSelect={onDeviceSelect}
-      />
-      <button
-        type="button"
-        className="btn btn-primary btn-full"
-        onClick={onStart}
-      >
-        Start Camera
-      </button>
-    </div>
-  );
-}
 
 function CameraSetupIcon() {
   return (

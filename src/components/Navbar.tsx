@@ -17,29 +17,24 @@ export function Navbar({ userId, staffUser, onLogout }: NavbarProps) {
             <span className="navbar-title-sub">Nasarawa State University, Keffi</span>
           </div>
         </a>
-        <div className="navbar-nav">
-          <a href="/" className="active">Enrollment</a>
-        </div>
-        {staffUser && (
-          <div className="navbar-staff">
-            <span className="navbar-staff-label">Staff</span>
-            <span className="navbar-staff-user">{staffUser}</span>
-            {onLogout && (
-              <button type="button" className="btn btn-small navbar-logout" onClick={onLogout}>
-                Sign out
-              </button>
-            )}
-          </div>
-        )}
-        {userId && (
-          <div className="navbar-status">
-            <span className="navbar-status-badge">
+        <div className="navbar-right">
+          {staffUser && (
+            <div className="navbar-staff">
+              <span className="navbar-staff-user">{staffUser}</span>
+              {onLogout && (
+                <button type="button" className="navbar-logout" onClick={onLogout}>
+                  Sign out
+                </button>
+              )}
+            </div>
+          )}
+          {userId && (
+            <div className="navbar-status">
               <span className="navbar-status-dot" />
-              Enrolling
-            </span>
-            <span className="navbar-status-id">{userId}</span>
-          </div>
-        )}
+              <span className="navbar-status-id">{userId}</span>
+            </div>
+          )}
+        </div>
       </div>
     </nav>
   );

@@ -17,6 +17,12 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 6000,
+    strictPort: true,
+    hmr: {
+      host: 'localhost',
+      clientPort: 6001,
+      protocol: 'ws',
+    },
     proxy: {
       '/api/v1': {
         target: 'http://127.0.0.1:8000',

@@ -1,4 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api/v1';
+// MOCK_MODE is opt-in: set VITE_MOCK_API=false in .env to hit the real backend.
+// Defaults to mock so local dev works without a running server; production
+// deployments MUST set VITE_MOCK_API=false or the liveness pipeline is skipped entirely.
 const MOCK_MODE = import.meta.env.VITE_MOCK_API !== 'false';
 const MAX_IMAGE_SIZE = 500_000; // 500KB upload cap
 const MAX_LIVENESS_FRAMES = 5;
