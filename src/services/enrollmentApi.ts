@@ -145,6 +145,53 @@ export async function enrollFace(
   };
 }
 
+export interface LivenessCheckResult {
+  liveness_passed: boolean;
+  frames_analyzed: number;
+}
+
+/**
+ * Sends collected liveness frames to the backend for real-time motion analysis.
+ * Returns immediately with a mock pass in MOCK_MODE.
+ */
+export async function checkLivenessFrames(frames: string[]): Promise<LivenessCheckResult> {
+  if (frames.length < 2) {
+    return { liveness_passed: false, frames_analyzed: frames.length };
+  }
+
+  if (MOCK_MODE) {
+    // In mock mode, simulate a brief check and pass if 3+ frames are present.
+    await new Promise((r) => setTimeout(r, 200));
+    return { liveness_passed: frames.length >= 3, frames_analyzed: frames.length };
+  }
+
+  const formData = new FormData();
+  for (let i = 0; i < frames.length; i++) {
+    try {
+      formData.append('files', dataUrlToBlob(frames[i]), `frame_${i}.jpg`);
+    } catch {
+      // skip malformed frames
+    }
+  }
+
+  const tokenFromEnv = import.meta.env.VITE_API_TOKEN;
+  const tokenFromStorage = window.localStorage.getItem('biometric_api_token');
+  const bearerToken = tokenFromEnv || tokenFromStorage;
+  const headers: HeadersInit = bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {};
+
+  try {
+    const response = await fetch(`${API_BASE}/liveness/check`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) return { liveness_passed: false, frames_analyzed: frames.length };
+    return response.json() as Promise<LivenessCheckResult>;
+  } catch {
+    return { liveness_passed: false, frames_analyzed: frames.length };
+  }
+}
+
 function dataUrlToBlob(dataUrl: string): Blob {
   const [header, base64Data] = dataUrl.split(',');
   if (!header || !base64Data || !header.startsWith('data:')) {

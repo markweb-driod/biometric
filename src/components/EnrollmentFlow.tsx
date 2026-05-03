@@ -5,7 +5,8 @@ import {
 } from '../state/enrollmentReducer';
 import { enrollFace, isEnrollmentApiError } from '../services/enrollmentApi';
 import { CameraCapture } from './CameraCapture';
-import { FacePreview } from './FacePreview';
+import { FacePreview, QualityPanel } from './FacePreview';
+import type { QualityPhase } from './FacePreview';
 import { StatusBanner } from './StatusBanner';
 import { StepIndicator } from './StepIndicator';
 import { DeviceSelector } from './DeviceSelector';
@@ -41,9 +42,11 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
     ready: false,
   });
   // Liveness tracking — mirrored from CameraCapture for the side panel
-  const [livenessCount, setLivenessCount] = useState(0);
   const [hasMotionEvidence, setHasMotionEvidence] = useState(false);
-  const livenessReady = livenessCount >= 3 && hasMotionEvidence;
+  const [faceInFrame, setFaceInFrame] = useState(false);
+  const [livenessReady, setLivenessReady] = useState(false);
+  // Quality state — mirrored from FacePreview for the right panel
+  const [qualityState, setQualityState] = useState<QualityPhase>({ phase: 'checking' });
 
   const handleCapture = useCallback((imageData: string, livenessFrames: string[]) => {
     livenessFramesRef.current = livenessFrames;
@@ -65,7 +68,7 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
       await enrollFace({ userId, image: imageData, livenessFrames: livenessFramesRef.current });
       dispatch({ type: 'FACE_SUBMIT_SUCCESS' });
     } catch (err) {
-      const fallbackMessage = err instanceof Error ? err.message : 'Submission failed';
+      const fallbackMessage = err instanceof Error ? err.message : 'Face enrollment could not be completed. Please try again or recapture the photo.';
       const apiError = isEnrollmentApiError(err) ? err : null;
       dispatch({
         type: 'FACE_SUBMIT_ERROR',
@@ -117,13 +120,6 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
         <div className="capture-layout">
           {/* Left: Camera Area */}
           <div className="capture-layout-camera">
-            {state.faceCapture.status === 'requesting-permission' && (
-              <div className="capture-camera-placeholder">
-                <span className="spinner spinner-large" />
-                <p>Requesting camera access…</p>
-              </div>
-            )}
-
             {state.faceCapture.status === 'permission-denied' && (
               <div className="capture-camera-placeholder capture-camera-error">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
@@ -156,9 +152,10 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
                 onPermissionRequested={() =>
                   dispatch({ type: 'CAMERA_PERMISSION_REQUESTED' })
                 }
-                onLivenessUpdate={(count, hasMotion) => {
-                  setLivenessCount(count);
+                onLivenessUpdate={(_count, hasMotion, face, ready) => {
                   setHasMotionEvidence(hasMotion);
+                  setFaceInFrame(face);
+                  setLivenessReady(ready);
                 }}
                 isStreaming={state.faceCapture.status === 'streaming'}
               />
@@ -171,6 +168,8 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
                 onRecapture={handleRecapture}
                 onSubmit={handleSubmit}
                 isSubmitting={state.faceCapture.status === 'submitting'}
+                hideQualityInline
+                onQualityChange={setQualityState}
               />
             )}
 
@@ -187,6 +186,8 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
                     ? 'This capture must be retaken before retrying submission.'
                     : errorHint
                 }
+                hideQualityInline
+                onQualityChange={setQualityState}
               />
             )}
 
@@ -232,12 +233,23 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
             {/* Liveness guidance — while camera is streaming */}
             {state.faceCapture.status === 'streaming' && (
               <div className="capture-panel-section">
-                <span className="capture-panel-label">Active Liveness</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.5rem' }}>
+                  <span className="capture-panel-label">Active Liveness</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 650, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                    Confirm the subject is physically present before capture
+                  </span>
+                </div>
                 <div className="capture-panel-steps">
                   {['Center face in the oval', 'Ask for one natural blink', 'Ask for a slight head turn'].map((step, index) => {
-                    const livenessStepIdx = Math.min(2, hasMotionEvidence ? 2 : livenessCount);
-                    const isComplete = index < livenessStepIdx || (index === 2 && livenessReady);
-                    const isCurrent = !isComplete && index === livenessStepIdx;
+                    const stepDone = [
+                      faceInFrame,
+                      hasMotionEvidence,
+                      livenessReady,
+                    ];
+                    const currentIndex = stepDone.findIndex((done) => !done);
+                    const activeIndex = currentIndex === -1 ? 2 : currentIndex;
+                    const isComplete = stepDone[index];
+                    const isCurrent = !isComplete && index === activeIndex;
                     return (
                       <div key={step} className={`capture-step-item${isComplete ? ' is-done' : ''}${isCurrent ? ' is-active' : ''}`}>
                         <span className="capture-step-num">{isComplete ? '✓' : index + 1}</span>
@@ -247,7 +259,11 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
                   })}
                 </div>
                 <div className={`capture-readiness${livenessReady ? ' is-ready' : ''}`}>
-                  {livenessReady ? '● Ready to capture' : '○ Awaiting motion proof…'}
+                  {livenessReady
+                    ? '● Ready to capture'
+                    : !faceInFrame
+                      ? '○ Face not detected — center the subject in the oval'
+                      : '○ Awaiting motion proof…'}
                 </div>
               </div>
             )}
@@ -262,6 +278,22 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
                   <li>Capture button unlocks after liveness check</li>
                 </ul>
               </div>
+            )}
+
+            {state.faceCapture.status === 'requesting-permission' && (
+              <div className="capture-panel-section">
+                <span className="capture-panel-label">Camera Access</span>
+                <div className="capture-readiness">
+                  ○ Waiting for camera permission in your browser...
+                </div>
+              </div>
+            )}
+
+            {/* Quality results — shown after capture */}
+            {(state.faceCapture.status === 'captured' ||
+              state.faceCapture.status === 'submitting' ||
+              state.faceCapture.status === 'error') && (
+              <QualityPanel quality={qualityState} />
             )}
 
             {/* Success action */}
@@ -360,8 +392,7 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
           </div>
           <h2>Enrollment Complete</h2>
           <p className="step-description">
-            Biometric enrollment for user <strong>{state.userId}</strong> has been
-            completed successfully.
+            ✓ Biometric enrollment for <strong>{state.userId}</strong> has been successfully saved to the system. The student can now use their face for identity verification.
           </p>
           <button
             type="button"
@@ -376,15 +407,16 @@ export function EnrollmentFlow({ userId, onCancel }: EnrollmentFlowProps) {
   );
 }
 
-function getCaptureErrorHint(code?: string): string | undefined {  switch (code) {
+function getCaptureErrorHint(code?: string): string | undefined {
+  switch (code) {
     case 'liveness_failed':
-  return 'Retake the session and make sure the subject blinks once and turns slightly before capture unlocks.';
+      return 'Liveness check failed — retake the capture. Ensure the subject blinks naturally once and turns their head slightly before the capture is ready.';
     case 'capture_quality_rejected':
-      return 'Improve lighting and keep the full face inside the oval before recapturing.';
+      return 'Face image quality is insufficient. Ensure good lighting, clear view of the face, and position the subject so their full face fits inside the oval.';
     case 'network_error':
-      return 'Network issue detected. You can retry submission with the same capture.';
+      return 'Network error detected. You can retry with the same capture. If the problem persists, please try recapturing.';
     case 'server_error':
-      return 'Temporary server issue. Retry now or recapture if repeated failures continue.';
+      return 'Server error occurred. Retry submission now. If the issue persists, recapture the photo and try again.';
     default:
       return undefined;
   }

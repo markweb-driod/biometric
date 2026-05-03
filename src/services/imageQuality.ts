@@ -56,7 +56,7 @@ const MIN_SOURCE_HEIGHT = 240;
  *     framing drift never hard-blocks an operator during capture
  */
 const T = {
-  brightness: { error: 32,  warn: 50  },   // luminance 0–255
+  brightness: { error: 45,  warn: 65  },   // luminance 0–255
   overexpose: { error: 0.35, warn: 0.16 },  // fraction of blown pixels
   blur:       { error: 10,   warn: 22  },   // Laplacian variance
   skinRatio: {

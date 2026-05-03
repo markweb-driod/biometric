@@ -10,6 +10,7 @@ export function StaffLogin({ onSuccess }: StaffLoginProps) {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -17,15 +18,20 @@ export function StaffLogin({ onSuccess }: StaffLoginProps) {
 
     setIsSubmitting(true);
     setError(null);
+    setSuccess(null);
 
     try {
       await loginStaff(username, password);
-      onSuccess(username.trim());
+      setSuccess('Login successful. Redirecting...');
+      window.setTimeout(() => {
+        onSuccess(username.trim());
+      }, 450);
+      return;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in.');
-    } finally {
-      setIsSubmitting(false);
     }
+
+    setIsSubmitting(false);
   };
 
   return (
@@ -42,6 +48,12 @@ export function StaffLogin({ onSuccess }: StaffLoginProps) {
           </div>
         )}
 
+        {success && (
+          <div className="status-banner status-success" role="status" aria-live="polite">
+            <span className="status-message">{success}</span>
+          </div>
+        )}
+
         <form className="enrollment-form" onSubmit={handleSubmit} noValidate>
           <div className="form-group">
             <label className="form-label" htmlFor="staff-username">Username</label>
@@ -51,9 +63,14 @@ export function StaffLogin({ onSuccess }: StaffLoginProps) {
               type="text"
               autoComplete="username"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                if (error) setError(null);
+                if (success) setSuccess(null);
+              }}
               placeholder="Enter staff username"
               required
+              disabled={isSubmitting}
             />
             {username.length > 0 && username.length < 3 && (
               <span className="form-error-text">Username must be at least 3 characters.</span>
@@ -70,9 +87,14 @@ export function StaffLogin({ onSuccess }: StaffLoginProps) {
               type="password"
               autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+                if (success) setSuccess(null);
+              }}
               placeholder="Enter password"
               required
+              disabled={isSubmitting}
             />
             {password.length > 0 && password.length < 5 && (
               <span className="form-error-text">Password must be at least 5 characters.</span>

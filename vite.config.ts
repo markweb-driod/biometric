@@ -16,17 +16,23 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    port: 6000,
+    port: 5173,
     strictPort: true,
+    allowedHosts: ['negative-store.outray.app'],
     hmr: {
       host: 'localhost',
-      clientPort: 6001,
+      clientPort: 5173,
       protocol: 'ws',
     },
     proxy: {
       '/api/v1': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+      },
+      '/ws': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        ws: true,
       },
     },
   },

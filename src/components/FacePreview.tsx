@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { analyzeImageQuality } from '../services/imageQuality';
 import type { QualityIssue } from '../services/imageQuality';
 
+export type QualityPhase =
+  | { phase: 'checking' }
+  | { phase: 'done'; issues: QualityIssue[]; passed: boolean };
+
 interface FacePreviewProps {
   imageData: string;
   onRecapture: () => void;
@@ -10,11 +14,12 @@ interface FacePreviewProps {
   submitLabel?: string;
   disableSubmit?: boolean;
   helperMessage?: string;
+  /** When true the quality status + issues are NOT rendered inline. Use
+   *  onQualityChange to render them elsewhere (e.g. the right panel). */
+  hideQualityInline?: boolean;
+  /** Fires whenever the quality analysis state changes. */
+  onQualityChange?: (quality: QualityPhase) => void;
 }
-
-type QualityPhase =
-  | { phase: 'checking' }
-  | { phase: 'done'; issues: QualityIssue[]; passed: boolean };
 
 export function FacePreview({
   imageData,
@@ -24,6 +29,8 @@ export function FacePreview({
   submitLabel = 'Use This Photo',
   disableSubmit = false,
   helperMessage,
+  hideQualityInline = false,
+  onQualityChange,
 }: FacePreviewProps) {
   const [quality, setQuality] = useState<QualityPhase>({ phase: 'checking' });
   const [allowOverride, setAllowOverride] = useState(false);
@@ -32,16 +39,21 @@ export function FacePreview({
     let cancelled = false;
     setQuality({ phase: 'checking' });
     setAllowOverride(false);
+    onQualityChange?.({ phase: 'checking' });
 
     analyzeImageQuality(imageData).then((result) => {
       if (!cancelled) {
-        setQuality({ phase: 'done', issues: result.issues, passed: result.passed });
+        const next: QualityPhase = { phase: 'done', issues: result.issues, passed: result.passed };
+        setQuality(next);
+        onQualityChange?.(next);
       }
     });
 
     return () => {
       cancelled = true;
     };
+  // onQualityChange is intentionally excluded — tracked via ref pattern in callers
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageData]);
 
   const hasErrors = quality.phase === 'done' && !quality.passed;
@@ -58,51 +70,53 @@ export function FacePreview({
         <span className="preview-badge">Preview</span>
       </div>
 
-      <div className="quality-status" aria-live="polite">
-        {quality.phase === 'checking' && (
-          <span className="quality-checking">
-            <span className="spinner spinner-sm" />
-            Checking quality...
-          </span>
-        )}
-
-        {quality.phase === 'done' && quality.issues.length === 0 && (
-          <span className="quality-passed">
-            <QualityPassIcon />
-            Quality check passed
-          </span>
-        )}
-
-        {quality.phase === 'done' && quality.issues.length > 0 && (
-          <div className="quality-issues">
-            <span
-              className={`quality-issues-header quality-header-${
-                quality.passed ? 'warn' : 'error'
-              }`}
-            >
-              {quality.passed ? <QualityWarnIcon /> : <QualityErrorIcon />}
-              {quality.passed
-                ? quality.issues.length === 1
-                  ? '1 warning detected'
-                  : `${quality.issues.length} warnings detected`
-                : blockingIssueCount === 1
-                  ? '1 blocking issue detected'
-                  : `${blockingIssueCount} blocking issues detected`}
+      {!hideQualityInline && (
+        <div className="quality-status" aria-live="polite">
+          {quality.phase === 'checking' && (
+            <span className="quality-checking">
+              <span className="spinner spinner-sm" />
+              Checking quality...
             </span>
-            <ul className="quality-issue-list">
-              {quality.issues.map((issue) => (
-                <li
-                  key={`${issue.code}-${issue.severity}`}
-                  className={`quality-issue quality-issue-${issue.severity}`}
-                >
-                  <span className="quality-issue-label">{issue.label}</span>
-                  <span className="quality-issue-suggestion">{issue.suggestion}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
+          )}
+
+          {quality.phase === 'done' && quality.issues.length === 0 && (
+            <span className="quality-passed">
+              <QualityPassIcon />
+              Quality check passed
+            </span>
+          )}
+
+          {quality.phase === 'done' && quality.issues.length > 0 && (
+            <div className="quality-issues">
+              <span
+                className={`quality-issues-header quality-header-${
+                  quality.passed ? 'warn' : 'error'
+                }`}
+              >
+                {quality.passed ? <QualityWarnIcon /> : <QualityErrorIcon />}
+                {quality.passed
+                  ? quality.issues.length === 1
+                    ? '1 warning detected'
+                    : `${quality.issues.length} warnings detected`
+                  : blockingIssueCount === 1
+                    ? '1 blocking issue detected'
+                    : `${blockingIssueCount} blocking issues detected`}
+              </span>
+              <ul className="quality-issue-list">
+                {quality.issues.map((issue) => (
+                  <li
+                    key={`${issue.code}-${issue.severity}`}
+                    className={`quality-issue quality-issue-${issue.severity}`}
+                  >
+                    <span className="quality-issue-label">{issue.label}</span>
+                    <span className="quality-issue-suggestion">{issue.suggestion}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="preview-actions">
         <button
@@ -144,6 +158,67 @@ export function FacePreview({
           Override and submit
         </button>
       )}
+    </div>
+  );
+}
+
+/** Standalone component to render quality results in the right panel. */
+export function QualityPanel({ quality }: { quality: QualityPhase }) {
+  if (quality.phase === 'checking') {
+    return (
+      <div className="capture-panel-section">
+        <span className="capture-panel-label">Quality Check</span>
+        <span className="quality-checking" style={{ fontSize: '0.8rem' }}>
+          <span className="spinner spinner-sm" />
+          Analysing capture quality…
+        </span>
+      </div>
+    );
+  }
+
+  const { issues, passed } = quality;
+  const blockingCount = issues.filter((i) => i.severity === 'error').length;
+
+  if (issues.length === 0) {
+    return (
+      <div className="capture-panel-section">
+        <span className="capture-panel-label">Quality Check</span>
+        <span className="quality-passed" style={{ fontSize: '0.8rem' }}>
+          <QualityPassIcon />
+          Quality check passed
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="capture-panel-section">
+      <span className="capture-panel-label">Quality Check</span>
+      <div className="quality-issues">
+        <span
+          className={`quality-issues-header quality-header-${passed ? 'warn' : 'error'}`}
+        >
+          {passed ? <QualityWarnIcon /> : <QualityErrorIcon />}
+          {passed
+            ? issues.length === 1
+              ? '1 warning detected'
+              : `${issues.length} warnings detected`
+            : blockingCount === 1
+              ? '1 blocking issue detected'
+              : `${blockingCount} blocking issues detected`}
+        </span>
+        <ul className="quality-issue-list">
+          {issues.map((issue) => (
+            <li
+              key={`${issue.code}-${issue.severity}`}
+              className={`quality-issue quality-issue-${issue.severity}`}
+            >
+              <span className="quality-issue-label">{issue.label}</span>
+              <span className="quality-issue-suggestion">{issue.suggestion}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

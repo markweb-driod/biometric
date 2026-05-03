@@ -25,33 +25,6 @@ function makeLargeDataUrl(byteCount: number): string {
   return `data:image/jpeg;base64,${btoa(binary)}`;
 }
 
-// ── helpers for mocking fetch ────────────────────────────────────────────────
-
-function mockFetchOk(body: object): void {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(body),
-    } as unknown as Response),
-  );
-}
-
-function mockFetchError(status: number, detail: string): void {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({
-      ok: false,
-      status,
-      json: () => Promise.resolve({ detail }),
-    } as unknown as Response),
-  );
-}
-
-function mockFetchNetworkFailure(): void {
-  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
-}
-
 // ── test suites ──────────────────────────────────────────────────────────────
 
 describe('isEnrollmentApiError', () => {
