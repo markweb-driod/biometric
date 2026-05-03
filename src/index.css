@@ -1420,6 +1420,18 @@ body {
   font-family: inherit;
 }
 
+/* Keep primary 3D action labels/icons white even with shared .btn base styles. */
+.btn.btn-3d-primary,
+.btn.btn-3d-primary:hover:not(:disabled),
+.btn.btn-3d-primary:active:not(:disabled),
+.btn.btn-3d-primary:disabled {
+  color: #ffffff;
+}
+
+.btn.btn-3d-primary svg {
+  color: #ffffff;
+}
+
 .btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
