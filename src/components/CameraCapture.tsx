@@ -53,6 +53,7 @@ export function CameraCapture({
   const expiryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const livenessWindowActiveRef = useRef(false);
   const socketRef = useRef<LivenessSocket | null>(null);
+  const wsConnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
 
   // Stable refs for callbacks to avoid re-triggering effects
@@ -282,11 +283,19 @@ export function CameraCapture({
     // The user has requested to use real liveness checks. 
     // We will use the real LivenessSocket by default now.
     socketRef.current = new LivenessSocket(socketUrl, socketEvents);
-    
-    socketRef.current.connect();
+    // Delay connect slightly so React StrictMode's mount/unmount dev cycle
+    // does not open+close during CONNECTING (which triggers browser warning noise).
+    wsConnectTimeoutRef.current = setTimeout(() => {
+      socketRef.current?.connect();
+      wsConnectTimeoutRef.current = null;
+    }, 80);
 
     startCamera();
     return () => {
+      if (wsConnectTimeoutRef.current !== null) {
+        clearTimeout(wsConnectTimeoutRef.current);
+        wsConnectTimeoutRef.current = null;
+      }
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
