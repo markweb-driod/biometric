@@ -112,12 +112,27 @@ export async function enrollFace(
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}/enroll`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-  } catch {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    try {
+      response = await fetch(`${API_BASE}/enroll`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new EnrollmentApiError({
+        message: 'Enrollment timed out (30 s). The server may be busy; retry shortly.',
+        code: 'network_error',
+        retryable: true,
+        shouldRecapture: false,
+      });
+    }
     throw new EnrollmentApiError({
       message: 'Unable to reach the enrollment service. Check network connectivity and retry.',
       code: 'network_error',
@@ -264,6 +279,18 @@ export function mapBackendError(status: number, backendMessage: string): Enrollm
   }
 
   if (status >= 500) {
+    if (
+      normalized.includes('student registry service is temporarily unavailable') ||
+      normalized.includes('failed to communicate with main storage')
+    ) {
+      return new EnrollmentApiError({
+        message: 'Student registry is temporarily unavailable. Please retry in a moment.',
+        code: 'server_error',
+        retryable: true,
+        shouldRecapture: false,
+        backendMessage,
+      });
+    }
     return new EnrollmentApiError({
       message: 'Enrollment service error. Retry with the same capture in a moment.',
       code: 'server_error',
