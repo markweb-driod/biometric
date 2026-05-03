@@ -133,12 +133,22 @@ export async function verifyFace(payload: VerifyPayload): Promise<VerificationRe
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}/verify/${encodeURIComponent(payload.identifier.trim())}`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: formData,
-    });
-  } catch {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    try {
+      response = await fetch(`${API_BASE}/verify/${encodeURIComponent(payload.identifier.trim())}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: formData,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new VerificationApiError({ message: 'Verification timed out (30 s). The server may be busy — please try again.', code: 'network_error', retryable: true });
+    }
     throw new VerificationApiError({ message: 'Network error. Check your connection.', code: 'network_error', retryable: true });
   }
 
