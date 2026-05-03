@@ -1,3 +1,5 @@
+import { getStoredToken } from './authApi';
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api/v1';
 // MOCK_MODE is opt-in: set VITE_MOCK_API=false in .env to hit the real backend.
 // Defaults to mock so local dev works without a running server; production
@@ -105,9 +107,10 @@ export async function enrollFace(
     });
   }
 
+  // Prefer the active signed-in session token.
+  const tokenFromStorage = getStoredToken();
   const tokenFromEnv = import.meta.env.VITE_API_TOKEN;
-  const tokenFromStorage = window.localStorage.getItem('biometric_api_token');
-  const bearerToken = tokenFromEnv || tokenFromStorage;
+  const bearerToken = tokenFromStorage || tokenFromEnv;
   const headers: HeadersInit = bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {};
 
   let response: Response;
@@ -189,9 +192,9 @@ export async function checkLivenessFrames(frames: string[]): Promise<LivenessChe
     }
   }
 
+  const tokenFromStorage = getStoredToken();
   const tokenFromEnv = import.meta.env.VITE_API_TOKEN;
-  const tokenFromStorage = window.localStorage.getItem('biometric_api_token');
-  const bearerToken = tokenFromEnv || tokenFromStorage;
+  const bearerToken = tokenFromStorage || tokenFromEnv;
   const headers: HeadersInit = bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {};
 
   try {
@@ -291,8 +294,13 @@ export function mapBackendError(status: number, backendMessage: string): Enrollm
         backendMessage,
       });
     }
+    const safeMessage =
+      normalized === 'internal server error'
+        ? 'Enrollment service error. Retry with the same capture in a moment.'
+        : backendMessage;
+
     return new EnrollmentApiError({
-      message: 'Enrollment service error. Retry with the same capture in a moment.',
+      message: safeMessage,
       code: 'server_error',
       retryable: true,
       shouldRecapture: false,
