@@ -357,10 +357,9 @@ export function CameraCapture({
     faceInFrame &&
     hasMotionEvidence &&
     livenessCount >= REQUIRED_LIVENESS_FRAMES;
-  // Only block on quality errors that have actually been detected — never block
-  // just because the quality check hasn't run yet.
-  const qualityReady = liveQualityErrors.length === 0;
-  const captureReady = livenessReady && qualityReady;
+  // Quality hints are advisory at capture time. Backend and preview stage still
+  // validate quality before final submission.
+  const captureReady = livenessReady;
   const primaryQualityError = liveQualityErrors[0];
   return (
     <div className="camera-capture">
@@ -413,8 +412,6 @@ export function CameraCapture({
               ? 'Waiting for camera stream'
               : !livenessReady
                 ? 'Complete the active liveness steps before capture'
-                : !qualityReady
-                  ? 'Fix image quality issues before capture'
                 : 'Capture photo'
           }
         >
