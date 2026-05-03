@@ -1,3 +1,5 @@
+import { getStoredToken } from './authApi';
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api/v1';
 const MOCK_MODE = false;
 const MAX_IMAGE_SIZE = 500_000;
@@ -69,9 +71,9 @@ function dataUrlToBlob(dataUrl: string): Blob {
 }
 
 function getAuthHeaders(): HeadersInit {
+  const tokenFromStorage = getStoredToken();
   const tokenFromEnv = import.meta.env.VITE_API_TOKEN;
-  const tokenFromStorage = window.localStorage.getItem('biometric_api_token');
-  const bearerToken = tokenFromEnv || tokenFromStorage;
+  const bearerToken = tokenFromStorage || tokenFromEnv;
   return bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {};
 }
 
