@@ -306,8 +306,19 @@ export function VerificationFlow({ onCancel }: VerificationFlowProps) {
             </div>
           )}
 
+          {/* Submitting progress */}
+          {isSubmitting && (
+            <div className="vf-submitting-banner">
+              <span className="spinner" style={{ width: '1.1rem', height: '1.1rem', borderWidth: '2px', flexShrink: 0 }} />
+              <div>
+                <span className="vf-submitting-title">Verifying identity…</span>
+                <span className="vf-submitting-sub">Comparing face against stored biometric</span>
+              </div>
+            </div>
+          )}
+
           {/* Quality panel after capture */}
-          {(cameraStatus === 'captured' || isSubmitting) && (
+          {(cameraStatus === 'captured' || isSubmitting) && !isSubmitting && (
             <QualityPanel quality={qualityState} />
           )}
 
