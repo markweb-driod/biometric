@@ -16,6 +16,7 @@ import {
   EnrollmentItem,
   StaffUser,
   VerificationLogItem,
+  VerificationLogsParams,
   SystemSettings,
 } from '../services/adminApi';
 
@@ -224,6 +225,12 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
   const [verifyTotal, setVerifyTotal] = useState(0);
   const [verifyPage, setVerifyPage] = useState(0);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifySearch, setVerifySearch] = useState('');
+  const [verifyModeFilter, setVerifyModeFilter] = useState<'1:1' | '1:N' | ''>('');
+  const [verifyResultFilter, setVerifyResultFilter] = useState<'success' | 'fail' | ''>('');
+  const [verifyDateFrom, setVerifyDateFrom] = useState('');
+  const [verifyDateTo, setVerifyDateTo] = useState('');
+  const [verifyDetailItem, setVerifyDetailItem] = useState<VerificationLogItem | null>(null);
   const VERIFY_PAGE_SIZE = 20;
 
   const [users, setUsers] = useState<StaffUser[]>([]);
@@ -273,16 +280,48 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
   // ── load verifications ────────────────────────────────────────────────────
   const loadVerifications = useCallback(async () => {
     setVerifyLoading(true);
+    const params: VerificationLogsParams = {
+      skip: verifyPage * VERIFY_PAGE_SIZE,
+      limit: VERIFY_PAGE_SIZE,
+    };
+    if (verifySearch) params.search = verifySearch;
+    if (verifyModeFilter) params.mode_filter = verifyModeFilter;
+    if (verifyResultFilter) params.result_filter = verifyResultFilter;
+    if (verifyDateFrom) params.date_from = verifyDateFrom;
+    if (verifyDateTo) params.date_to = verifyDateTo;
     try {
-      const res = await fetchVerificationLogs({ skip: verifyPage * VERIFY_PAGE_SIZE, limit: VERIFY_PAGE_SIZE });
+      const res = await fetchVerificationLogs(params);
       setVerifications(res.items);
       setVerifyTotal(res.total);
     } finally {
       setVerifyLoading(false);
     }
-  }, [verifyPage]);
+  }, [verifyPage, verifySearch, verifyModeFilter, verifyResultFilter, verifyDateFrom, verifyDateTo]);
 
   useEffect(() => { if (tab === 'verifications') loadVerifications(); }, [tab, loadVerifications]);
+
+  // ── export verifications CSV ───────────────────────────────────────────────
+  const exportVerificationsCSV = () => {
+    const header = ['ID','Student','Ext ID','Mode','Score%','Confidence','Threshold','Liveness','Result','Decision','Operator','Timestamp'];
+    const rows = verifications.map((v) => [
+      v.id, v.full_name, v.external_id, v.matching_mode,
+      v.match_score, v.raw_confidence,
+      typeof v.threshold === 'number' ? v.threshold : '',
+      v.liveness_passed ? 'Pass' : 'Fail',
+      v.is_successful ? 'Match' : 'No Match',
+      v.decision_reason,
+      v.operator,
+      v.timestamp,
+    ]);
+    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `verification-log-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // ── load users ────────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
@@ -618,8 +657,53 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
       {tab === 'verifications' && (
         <div className="adm-section">
           <div className="adm-section-header">
-            <h2 className="adm-section-title">Verification Logs</h2>
-            <span className="adm-section-count">{verifyTotal} total</span>
+            <div>
+              <h2 className="adm-section-title">Verification Audit Log</h2>
+              <p className="adm-section-sub">Filterable record of all 1:1 and 1:N biometric verification attempts</p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="adm-btn adm-btn-ghost adm-btn-sm" onClick={exportVerificationsCSV} title="Export current page to CSV">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+              </button>
+              <button className="adm-btn adm-btn-ghost adm-btn-sm" onClick={loadVerifications}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {/* filter bar */}
+          <div className="adm-filter-row adm-filter-row--wrap">
+            <div className="adm-search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="adm-search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input
+                className="adm-search-input"
+                type="search"
+                placeholder="Search by name or ID…"
+                value={verifySearch}
+                onChange={(e) => { setVerifySearch(e.target.value); setVerifyPage(0); }}
+              />
+            </div>
+            <select className="adm-select" value={verifyModeFilter} onChange={(e) => { setVerifyModeFilter(e.target.value as '1:1'|'1:N'|''); setVerifyPage(0); }}>
+              <option value="">All modes</option>
+              <option value="1:1">1:1 Verify</option>
+              <option value="1:N">1:N Identify</option>
+            </select>
+            <select className="adm-select" value={verifyResultFilter} onChange={(e) => { setVerifyResultFilter(e.target.value as 'success'|'fail'|''); setVerifyPage(0); }}>
+              <option value="">All results</option>
+              <option value="success">Match</option>
+              <option value="fail">No Match</option>
+            </select>
+            <input className="adm-date-input" type="date" value={verifyDateFrom} onChange={(e) => { setVerifyDateFrom(e.target.value); setVerifyPage(0); }} title="From date" />
+            <input className="adm-date-input" type="date" value={verifyDateTo} onChange={(e) => { setVerifyDateTo(e.target.value); setVerifyPage(0); }} title="To date" />
+            {(verifySearch || verifyModeFilter || verifyResultFilter || verifyDateFrom || verifyDateTo) && (
+              <button className="adm-btn adm-btn-ghost adm-btn-xs" onClick={() => {
+                setVerifySearch(''); setVerifyModeFilter(''); setVerifyResultFilter('');
+                setVerifyDateFrom(''); setVerifyDateTo(''); setVerifyPage(0);
+              }}>Clear filters</button>
+            )}
+            <span className="adm-section-count" style={{ marginLeft: 'auto' }}>{verifyTotal} records</span>
           </div>
 
           {verifyLoading ? (
@@ -631,38 +715,64 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
                   <thead>
                     <tr>
                       <th>Student</th>
-                      <th>ID</th>
-                      <th>Match</th>
+                      <th>Ext ID</th>
+                      <th>Mode</th>
+                      <th style={{ minWidth: 140 }}>Confidence</th>
                       <th>Liveness</th>
-                      <th>Result</th>
+                      <th>Decision</th>
+                      <th>Operator</th>
                       <th>Timestamp</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {verifications.length === 0 ? (
-                      <tr><td colSpan={6} className="adm-empty">No verification records.</td></tr>
-                    ) : verifications.map((v) => (
-                      <tr key={v.id}>
-                        <td className="adm-td-name">{v.full_name}</td>
-                        <td className="adm-td-id">{v.external_id}</td>
-                        <td>
-                          <span className={`adm-score ${v.match_score >= 70 ? 'score-good' : v.match_score >= 50 ? 'score-mid' : 'score-bad'}`}>
-                            {v.match_score}%
-                          </span>
-                        </td>
-                        <td>
-                          {v.liveness_passed
-                            ? <span className="adm-badge badge-green">Pass</span>
-                            : <span className="adm-badge badge-red">Fail</span>}
-                        </td>
-                        <td>
-                          {v.is_successful
-                            ? <span className="adm-badge badge-green">✓ Match</span>
-                            : <span className="adm-badge badge-red">✗ No Match</span>}
-                        </td>
-                        <td className="adm-td-date">{fmtTs(v.timestamp)}</td>
-                      </tr>
-                    ))}
+                      <tr><td colSpan={9} className="adm-empty">No verification records match the current filters.</td></tr>
+                    ) : verifications.map((v) => {
+                      const scoreColor = v.match_score >= 75 ? '#16a34a' : v.match_score >= 55 ? '#d97706' : '#dc2626';
+                      const thresholdPct = typeof v.threshold === 'number' ? v.threshold * 100 : null;
+                      return (
+                        <tr key={v.id}>
+                          <td className="adm-td-name">{v.full_name || <em className="adm-td-unknown">Unknown</em>}</td>
+                          <td className="adm-td-id">{v.external_id}</td>
+                          <td>
+                            <span className={`adm-badge ${v.matching_mode === '1:1' ? 'badge-blue' : 'badge-purple'}`}>
+                              {v.matching_mode}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="adm-conf-cell">
+                              <div className="adm-conf-bar-track">
+                                <div className="adm-conf-bar-fill" style={{ width: `${Math.min(v.match_score, 100)}%`, background: scoreColor }} />
+                                {thresholdPct != null && (
+                                  <div className="adm-conf-threshold" style={{ left: `${thresholdPct}%` }} title={`Threshold: ${thresholdPct.toFixed(0)}%`} />
+                                )}
+                              </div>
+                              <span className="adm-conf-label" style={{ color: scoreColor }}>{v.match_score}%</span>
+                            </div>
+                          </td>
+                          <td>
+                            {v.liveness_passed
+                              ? <span className="adm-badge badge-green">Pass</span>
+                              : <span className="adm-badge badge-red">Fail</span>}
+                          </td>
+                          <td>
+                            {v.is_successful
+                              ? <span className="adm-badge badge-green">✓ Match</span>
+                              : <span className="adm-badge badge-red">✗ No Match</span>}
+                          </td>
+                          <td className="adm-td-operator">
+                            {v.operator ? (
+                              <span className="adm-operator-chip" title={v.operator_role}>{v.operator}</span>
+                            ) : <span className="adm-td-unknown">—</span>}
+                          </td>
+                          <td className="adm-td-date">{fmtTs(v.timestamp)}</td>
+                          <td>
+                            <button className="adm-btn adm-btn-ghost adm-btn-xs" onClick={() => setVerifyDetailItem(v)}>Detail</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -677,6 +787,11 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
             </>
           )}
         </div>
+      )}
+
+      {/* ── Verification Detail Modal ─────────────────────────────────────── */}
+      {verifyDetailItem && (
+        <VerificationDetailModal item={verifyDetailItem} onClose={() => setVerifyDetailItem(null)} />
       )}
 
       {/* ── Staff Users ───────────────────────────────────────────────────── */}
