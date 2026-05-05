@@ -1027,21 +1027,34 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
           <div className="adm-section-header">
             <div>
               <h2 className="adm-section-title">Verification Audit Log</h2>
-              <p className="adm-section-sub">Filterable record of all 1:1 and 1:N biometric verification attempts</p>
+              <p className="adm-section-sub">Full history of all 1:1 and 1:N biometric verification attempts</p>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                className={`adm-btn adm-btn-xs ${autoRefresh ? 'adm-btn-success' : 'adm-btn-ghost'}`}
+                onClick={() => setAutoRefresh((v) => !v)}
+                title={autoRefresh ? 'Auto-refresh ON (every 30s) — click to disable' : 'Enable auto-refresh every 30 seconds'}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"
+                  style={autoRefresh ? { animation: 'spin 2s linear infinite' } : {}}
+                ><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                {autoRefresh ? 'Live' : 'Auto-refresh'}
+              </button>
               <button className="adm-btn adm-btn-ghost adm-btn-sm" onClick={exportVerificationsCSV} title="Export current page to CSV">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Export CSV
               </button>
-              <button className="adm-btn adm-btn-ghost adm-btn-sm" onClick={loadVerifications}>
+              <button className="adm-btn adm-btn-ghost adm-btn-sm" onClick={() => { loadVerifications(); loadAuditStats(); }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 Refresh
               </button>
             </div>
           </div>
 
-          {/* filter bar */}
+          {/* ── Analytics panel ── */}
+          <AuditStatsPanel stats={auditStats} loading={auditStatsLoading} />
+
+          {/* ── Filters ── */}
           <div className="adm-filter-row adm-filter-row--wrap">
             <div className="adm-search-wrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="adm-search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -1071,79 +1084,148 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
                 setVerifyDateFrom(''); setVerifyDateTo(''); setVerifyPage(0);
               }}>Clear filters</button>
             )}
-            <span className="adm-section-count" style={{ marginLeft: 'auto' }}>{verifyTotal} records</span>
+            {flaggedIds.size > 0 && (
+              <button
+                className="adm-btn adm-btn-xs audit-flag-btn audit-flag-btn--on"
+                title={`${flaggedIds.size} record${flaggedIds.size !== 1 ? 's' : ''} flagged for review`}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" width="11" height="11"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" /></svg>
+                {flaggedIds.size} flagged
+              </button>
+            )}
+            <div className="audit-view-toggle" style={{ marginLeft: 'auto' }}>
+              <button
+                className={`audit-view-btn${verifyView === 'table' ? ' audit-view-btn--active' : ''}`}
+                onClick={() => setVerifyView('table')} title="Table view"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+              </button>
+              <button
+                className={`audit-view-btn${verifyView === 'timeline' ? ' audit-view-btn--active' : ''}`}
+                onClick={() => setVerifyView('timeline')} title="Timeline view"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              </button>
+            </div>
+            <select className="adm-select" style={{ minWidth: 'unset' }} value={verifyPageSize} onChange={(e) => { setVerifyPageSize(Number(e.target.value)); setVerifyPage(0); }}>
+              <option value={20}>20 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
+            </select>
+            <span className="adm-section-count">{verifyTotal} total</span>
           </div>
 
           {verifyLoading ? (
             <div className="adm-loading">Loading…</div>
           ) : (
             <>
-              <div className="adm-table-wrap">
-                <table className="adm-table">
-                  <thead>
-                    <tr>
-                      <th>Student</th>
-                      <th>Ext ID</th>
-                      <th>Mode</th>
-                      <th style={{ minWidth: 140 }}>Confidence</th>
-                      <th>Liveness</th>
-                      <th>Decision</th>
-                      <th>Operator</th>
-                      <th>Timestamp</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {verifications.length === 0 ? (
-                      <tr><td colSpan={9} className="adm-empty">No verification records match the current filters.</td></tr>
-                    ) : verifications.map((v) => {
-                      const scoreColor = v.match_score >= 75 ? '#16a34a' : v.match_score >= 55 ? '#d97706' : '#dc2626';
-                      const thresholdPct = typeof v.threshold === 'number' ? v.threshold * 100 : null;
-                      return (
-                        <tr key={v.id}>
-                          <td className="adm-td-name">{v.full_name || <em className="adm-td-unknown">Unknown</em>}</td>
-                          <td className="adm-td-id">{v.external_id}</td>
-                          <td>
-                            <span className={`adm-badge ${v.matching_mode === '1:1' ? 'badge-blue' : 'badge-purple'}`}>
-                              {v.matching_mode}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="adm-conf-cell">
-                              <div className="adm-conf-bar-track">
-                                <div className="adm-conf-bar-fill" style={{ width: `${Math.min(v.match_score, 100)}%`, background: scoreColor }} />
-                                {thresholdPct != null && (
-                                  <div className="adm-conf-threshold" style={{ left: `${thresholdPct}%` }} title={`Threshold: ${thresholdPct.toFixed(0)}%`} />
-                                )}
+              {verifyView === 'table' ? (
+                <div className="adm-table-wrap">
+                  <table className="adm-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 28, padding: '0.5rem 0.3rem' }}></th>
+                        <th
+                          className={`adm-th-sortable${sortField === 'student' ? ' adm-th-sorted' : ''}`}
+                          onClick={() => { if (sortField === 'student') setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortField('student'); setSortDir('asc'); } }}
+                        >Student {sortField === 'student' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="adm-th-sort-icon">⇅</span>}</th>
+                        <th>Ext ID</th>
+                        <th>Mode</th>
+                        <th
+                          className={`adm-th-sortable${sortField === 'confidence' ? ' adm-th-sorted' : ''}`}
+                          onClick={() => { if (sortField === 'confidence') setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortField('confidence'); setSortDir('desc'); } }}
+                          style={{ minWidth: 150 }}
+                        >Confidence {sortField === 'confidence' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="adm-th-sort-icon">⇅</span>}</th>
+                        <th>Liveness</th>
+                        <th>Decision</th>
+                        <th>Operator</th>
+                        <th
+                          className={`adm-th-sortable${sortField === 'timestamp' ? ' adm-th-sorted' : ''}`}
+                          onClick={() => { if (sortField === 'timestamp') setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortField('timestamp'); setSortDir('desc'); } }}
+                        >Time {sortField === 'timestamp' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="adm-th-sort-icon">⇅</span>}</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedVerifications.length === 0 ? (
+                        <tr><td colSpan={10} className="adm-empty">No records match the current filters.</td></tr>
+                      ) : sortedVerifications.map((v) => {
+                        const scoreColor = v.match_score >= 75 ? '#16a34a' : v.match_score >= 55 ? '#d97706' : '#dc2626';
+                        const thresholdPct = typeof v.threshold === 'number' ? v.threshold * 100 : null;
+                        const isRisky = !v.liveness_passed && v.match_score >= 55;
+                        const isInconclusive = !v.is_successful && v.match_score >= 40 && v.match_score < 75;
+                        const isFlagged = flaggedIds.has(v.id);
+                        return (
+                          <tr key={v.id} className={[
+                            isRisky ? 'audit-row--risky' : '',
+                            isInconclusive ? 'audit-row--inconclusive' : '',
+                            isFlagged ? 'audit-row--flagged' : '',
+                          ].filter(Boolean).join(' ')}>
+                            <td style={{ padding: '0.35rem 0.3rem' }}>
+                              <button
+                                className={`audit-flag-btn${isFlagged ? ' audit-flag-btn--on' : ''}`}
+                                onClick={() => toggleFlag(v.id)}
+                                title={isFlagged ? 'Unflag record' : 'Flag for review'}
+                              >
+                                <svg viewBox="0 0 24 24" fill={isFlagged ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" width="13" height="13">
+                                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>
+                                </svg>
+                              </button>
+                            </td>
+                            <td className="adm-td-name">
+                              {v.full_name || <em className="adm-td-unknown">Unknown</em>}
+                              {isRisky && <span className="audit-risk-tag" title="Liveness failed but high confidence — possible spoof">⚠ Risk</span>}
+                            </td>
+                            <td className="adm-td-id">{v.external_id}</td>
+                            <td>
+                              <span className={`adm-badge ${v.matching_mode === '1:1' ? 'badge-blue' : 'badge-purple'}`}>{v.matching_mode}</span>
+                            </td>
+                            <td>
+                              <div className="adm-conf-cell">
+                                <div className="adm-conf-bar-track">
+                                  <div className="adm-conf-bar-fill" style={{ width: `${Math.min(v.match_score, 100)}%`, background: scoreColor }} />
+                                  {thresholdPct != null && <div className="adm-conf-threshold" style={{ left: `${thresholdPct}%` }} title={`Threshold: ${thresholdPct.toFixed(0)}%`} />}
+                                </div>
+                                <span className="adm-conf-label" style={{ color: scoreColor }}>{v.match_score}%</span>
                               </div>
-                              <span className="adm-conf-label" style={{ color: scoreColor }}>{v.match_score}%</span>
-                            </div>
-                          </td>
-                          <td>
-                            {v.liveness_passed
-                              ? <span className="adm-badge badge-green">Pass</span>
-                              : <span className="adm-badge badge-red">Fail</span>}
-                          </td>
-                          <td>
-                            {v.is_successful
-                              ? <span className="adm-badge badge-green">✓ Match</span>
-                              : <span className="adm-badge badge-red">✗ No Match</span>}
-                          </td>
-                          <td className="adm-td-operator">
-                            {v.operator ? (
-                              <span className="adm-operator-chip" title={v.operator_role}>{v.operator}</span>
-                            ) : <span className="adm-td-unknown">—</span>}
-                          </td>
-                          <td className="adm-td-date">{fmtTs(v.timestamp)}</td>
-                          <td>
-                            <button className="adm-btn adm-btn-ghost adm-btn-xs" onClick={() => setVerifyDetailItem(v)}>Detail</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                            </td>
+                            <td>
+                              {v.liveness_passed
+                                ? <span className="adm-badge badge-green">Pass</span>
+                                : <span className="adm-badge badge-red">Fail</span>}
+                            </td>
+                            <td>
+                              {v.is_successful
+                                ? <span className="adm-badge badge-green">✓ Match</span>
+                                : <span className="adm-badge badge-red">✗ No Match</span>}
+                            </td>
+                            <td className="adm-td-operator">
+                              {v.operator ? (
+                                <span className="adm-operator-chip" title={v.operator_role}>{v.operator}</span>
+                              ) : <span className="adm-td-unknown">—</span>}
+                            </td>
+                            <td className="adm-td-date">
+                              <span title={v.timestamp} style={{ display: 'block' }}>{relativeTime(v.timestamp)}</span>
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{fmtTs(v.timestamp)}</span>
+                            </td>
+                            <td>
+                              <button className="adm-btn adm-btn-ghost adm-btn-xs" onClick={() => setVerifyDetailItem(v)}>Detail</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <AuditTimeline
+                  items={sortedVerifications}
+                  flaggedIds={flaggedIds}
+                  onToggleFlag={toggleFlag}
+                  onDetail={setVerifyDetailItem}
+                />
+              )}
 
               {totalVerifyPages > 1 && (
                 <div className="adm-pagination">
