@@ -123,11 +123,17 @@ export interface VerificationLogItem {
   student_id: number;
   full_name: string;
   external_id: string;
-  match_score: number;
+  match_score: number;       // 0–100 (percentage)
+  raw_confidence: number;    // 0–1 float
   is_successful: boolean;
   liveness_passed: boolean;
-  matching_mode: string;
+  matching_mode: string;     // '1:1' | '1:N'
   timestamp: string;
+  operator: string;
+  operator_role: string;
+  threshold: number | string;
+  decision_reason: string;
+  audit_metadata: Record<string, unknown>;
 }
 
 export interface VerificationListResponse {
@@ -135,10 +141,25 @@ export interface VerificationListResponse {
   items: VerificationLogItem[];
 }
 
-export function fetchVerificationLogs(params?: { skip?: number; limit?: number }): Promise<VerificationListResponse> {
+export interface VerificationLogsParams {
+  skip?: number;
+  limit?: number;
+  search?: string;
+  mode_filter?: '1:1' | '1:N' | '';
+  result_filter?: 'success' | 'fail' | '';
+  date_from?: string;
+  date_to?: string;
+}
+
+export function fetchVerificationLogs(params?: VerificationLogsParams): Promise<VerificationListResponse> {
   const q = new URLSearchParams();
   if (params?.skip != null) q.set('skip', String(params.skip));
   if (params?.limit != null) q.set('limit', String(params.limit));
+  if (params?.search) q.set('search', params.search);
+  if (params?.mode_filter) q.set('mode_filter', params.mode_filter);
+  if (params?.result_filter) q.set('result_filter', params.result_filter);
+  if (params?.date_from) q.set('date_from', params.date_from);
+  if (params?.date_to) q.set('date_to', params.date_to);
   return adminFetch(`${ADMIN_BASE}/verifications?${q}`);
 }
 
