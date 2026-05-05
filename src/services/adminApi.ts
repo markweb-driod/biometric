@@ -39,6 +39,30 @@ export function fetchAdminStats(): Promise<AdminStats> {
   return adminFetch(`${ADMIN_BASE}/stats`);
 }
 
+export interface AuditStats {
+  total: number;
+  matched: number;
+  failed: number;
+  match_rate: number;          // 0–100
+  avg_confidence: number;      // 0–100
+  liveness_pass_rate: number;  // 0–100
+  mode_breakdown: Record<string, number>;
+  top_operators: Array<{ operator: string; count: number }>;
+  score_buckets: number[];     // 10 buckets: 0-10%, 10-20%, ..., 90-100%
+}
+
+export function fetchVerificationStats(
+  params?: Omit<VerificationLogsParams, 'skip' | 'limit'>
+): Promise<AuditStats> {
+  const q = new URLSearchParams();
+  if (params?.search) q.set('search', params.search);
+  if (params?.mode_filter) q.set('mode_filter', params.mode_filter);
+  if (params?.result_filter) q.set('result_filter', params.result_filter);
+  if (params?.date_from) q.set('date_from', params.date_from);
+  if (params?.date_to) q.set('date_to', params.date_to);
+  return adminFetch(`${ADMIN_BASE}/verifications/stats?${q}`);
+}
+
 // ── Enrollments ───────────────────────────────────────────────────────────────
 
 export interface EnrollmentItem {

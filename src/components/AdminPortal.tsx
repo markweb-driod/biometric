@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   fetchAdminStats,
   fetchEnrollments,
   fetchStaffUsers,
   fetchVerificationLogs,
+  fetchVerificationStats,
   fetchSystemSettings,
   updateEnrollmentStatus,
   deleteEnrollment,
@@ -13,6 +14,7 @@ import {
   updateSystemSettings,
   reloadIndex,
   AdminStats,
+  AuditStats,
   EnrollmentItem,
   StaffUser,
   VerificationLogItem,
@@ -63,6 +65,19 @@ function fmtTs(iso: string) {
   try {
     return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch { return iso; }
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const secs = Math.floor(diff / 1000);
+  if (secs < 60) return 'just now';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 }
 
 // ── stat card ────────────────────────────────────────────────────────────────
@@ -203,6 +218,174 @@ function EnrollmentPreviewModal({ item, onClose }: EnrollmentPreviewProps) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Confidence histogram (10 buckets) ─────────────────────────────────────────
+
+function ConfHistogram({ buckets }: { buckets: number[] }) {
+  const max = Math.max(...buckets, 1);
+  const h = 36, barW = 12, gap = 2;
+  const w = buckets.length * (barW + gap) - gap;
+  return (
+    <svg width={w} height={h} style={{ display: 'block', overflow: 'visible' }}>
+      {buckets.map((v, i) => {
+        const barH = Math.max(Math.round((v / max) * (h - 2)), v > 0 ? 2 : 0);
+        const pct = i * 10;
+        const color = pct >= 70 ? '#16a34a' : pct >= 40 ? '#d97706' : '#dc2626';
+        return (
+          <rect key={i} x={i * (barW + gap)} y={h - barH} width={barW} height={barH} fill={color} opacity={0.75} rx={2}>
+            <title>{pct}–{pct + 10}%: {v} record{v !== 1 ? 's' : ''}</title>
+          </rect>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Audit analytics panel ───────────────────────────────────────────────────
+
+function AuditStatsPanel({ stats, loading }: { stats: AuditStats | null; loading: boolean }) {
+  if (loading && !stats) return <div className="audit-stats-panel audit-stats-panel--loading">Loading analytics…</div>;
+  if (!stats || stats.total === 0) return <div className="audit-stats-panel audit-stats-panel--empty">No records match the current filters</div>;
+
+  const matchColor = stats.match_rate >= 80 ? '#16a34a' : stats.match_rate >= 50 ? '#d97706' : '#dc2626';
+  const confColor = stats.avg_confidence >= 75 ? '#16a34a' : stats.avg_confidence >= 55 ? '#d97706' : '#dc2626';
+  const liveColor = stats.liveness_pass_rate >= 90 ? '#16a34a' : stats.liveness_pass_rate >= 70 ? '#d97706' : '#dc2626';
+  const oneToOne = stats.mode_breakdown['1:1'] ?? 0;
+  const oneToN = stats.mode_breakdown['1:N'] ?? 0;
+  const modeTotal = Math.max(oneToOne + oneToN, 1);
+
+  return (
+    <div className="audit-stats-panel">
+      <div className="audit-stat-tile">
+        <span className="audit-stat-label">Total Records</span>
+        <span className="audit-stat-value">{stats.total.toLocaleString()}</span>
+        <span className="audit-stat-sub">{stats.matched} matched · {stats.failed} failed</span>
+      </div>
+      <div className="audit-stat-tile">
+        <span className="audit-stat-label">Match Rate</span>
+        <span className="audit-stat-value" style={{ color: matchColor }}>{stats.match_rate}%</span>
+        <div className="audit-stat-bar"><div className="audit-stat-bar-fill" style={{ width: `${stats.match_rate}%`, background: matchColor }} /></div>
+      </div>
+      <div className="audit-stat-tile">
+        <span className="audit-stat-label">Avg Confidence</span>
+        <span className="audit-stat-value" style={{ color: confColor }}>{stats.avg_confidence}%</span>
+        <div className="audit-stat-bar"><div className="audit-stat-bar-fill" style={{ width: `${stats.avg_confidence}%`, background: confColor }} /></div>
+      </div>
+      <div className="audit-stat-tile">
+        <span className="audit-stat-label">Liveness Pass</span>
+        <span className="audit-stat-value" style={{ color: liveColor }}>{stats.liveness_pass_rate}%</span>
+        <div className="audit-stat-bar"><div className="audit-stat-bar-fill" style={{ width: `${stats.liveness_pass_rate}%`, background: liveColor }} /></div>
+      </div>
+      <div className="audit-stat-tile audit-stat-tile--hist">
+        <span className="audit-stat-label">Score Distribution</span>
+        <ConfHistogram buckets={stats.score_buckets} />
+        <div className="audit-hist-legend">
+          <span style={{ color: '#dc2626' }}>0–40%</span>
+          <span style={{ color: '#d97706' }}>40–70%</span>
+          <span style={{ color: '#16a34a' }}>70–100%</span>
+        </div>
+      </div>
+      <div className="audit-stat-tile">
+        <span className="audit-stat-label">Mode Split</span>
+        <div className="audit-mode-bar">
+          <div className="audit-mode-seg audit-mode-seg--1v1" style={{ width: `${(oneToOne / modeTotal) * 100}%` }} title={`1:1 — ${oneToOne}`} />
+          <div className="audit-mode-seg audit-mode-seg--1vN" style={{ width: `${(oneToN / modeTotal) * 100}%` }} title={`1:N — ${oneToN}`} />
+        </div>
+        <div className="audit-mode-legend">
+          <span><span className="dot dot-blue" />1:1 ({oneToOne})</span>
+          <span><span className="dot dot-purple" />1:N ({oneToN})</span>
+        </div>
+      </div>
+      {stats.top_operators.length > 0 && (
+        <div className="audit-stat-tile audit-stat-tile--ops">
+          <span className="audit-stat-label">Top Operators</span>
+          {stats.top_operators.slice(0, 3).map((op) => (
+            <div className="audit-op-row" key={op.operator}>
+              <span className="audit-op-name">{op.operator}</span>
+              <div className="audit-op-bar-track">
+                <div className="audit-op-bar-fill" style={{ width: `${(op.count / stats.total) * 100}%` }} />
+              </div>
+              <span className="audit-op-count">{op.count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Audit timeline view ──────────────────────────────────────────────────────
+
+function AuditTimeline({ items, flaggedIds, onToggleFlag, onDetail }: {
+  items: VerificationLogItem[];
+  flaggedIds: Set<string>;
+  onToggleFlag: (id: string) => void;
+  onDetail: (v: VerificationLogItem) => void;
+}) {
+  if (items.length === 0) return <div className="adm-empty" style={{ padding: '2rem' }}>No records to display.</div>;
+  return (
+    <div className="audit-timeline">
+      {items.map((v, idx) => {
+        const scoreColor = v.match_score >= 75 ? '#16a34a' : v.match_score >= 55 ? '#d97706' : '#dc2626';
+        const isRisky = !v.liveness_passed && v.match_score >= 55;
+        const isFlagged = flaggedIds.has(v.id);
+        const thresholdPct = typeof v.threshold === 'number' ? v.threshold * 100 : null;
+        return (
+          <div key={v.id} className={`audit-tl-item${isRisky ? ' audit-tl-item--risky' : ''}${isFlagged ? ' audit-tl-item--flagged' : ''}`}>
+            <div className="audit-tl-dot-wrap">
+              <div className={`audit-tl-dot ${v.is_successful ? 'audit-tl-dot--match' : 'audit-tl-dot--fail'}`} />
+              {idx < items.length - 1 && <div className="audit-tl-line" />}
+            </div>
+            <div className="audit-tl-body">
+              <div className="audit-tl-header">
+                <div className="audit-tl-identity">
+                  <span className="audit-tl-name">{v.full_name || 'Unknown'}</span>
+                  {v.external_id && <span className="audit-tl-extid">{v.external_id}</span>}
+                </div>
+                <div className="audit-tl-badges">
+                  <span className={`adm-badge ${v.matching_mode === '1:1' ? 'badge-blue' : 'badge-purple'}`}>{v.matching_mode}</span>
+                  {v.is_successful
+                    ? <span className="adm-badge badge-green">✓ Match</span>
+                    : <span className="adm-badge badge-red">✗ No Match</span>}
+                  {isRisky && <span className="adm-badge badge-red" title="Liveness failed but high confidence — possible spoof attempt">⚠ Risk</span>}
+                  {isFlagged && <span className="adm-badge badge-yellow">⚑ Flagged</span>}
+                </div>
+                <span className="audit-tl-time" title={v.timestamp}>{relativeTime(v.timestamp)}</span>
+              </div>
+              <div className="audit-tl-conf-row">
+                <div className="adm-conf-cell" style={{ flex: 1 }}>
+                  <div className="adm-conf-bar-track" style={{ flex: 1 }}>
+                    <div className="adm-conf-bar-fill" style={{ width: `${Math.min(v.match_score, 100)}%`, background: scoreColor }} />
+                    {thresholdPct != null && <div className="adm-conf-threshold" style={{ left: `${thresholdPct}%` }} />}
+                  </div>
+                  <span className="adm-conf-label" style={{ color: scoreColor }}>{v.match_score}%</span>
+                </div>
+                <span className={`adm-badge ${v.liveness_passed ? 'badge-green' : 'badge-red'}`} style={{ fontSize: '0.7rem' }}>
+                  {v.liveness_passed ? '✓ Live' : '✗ Liveness'}
+                </span>
+                {v.operator && <span className="adm-operator-chip">{v.operator}</span>}
+                <span className="audit-tl-date">{fmtTs(v.timestamp)}</span>
+              </div>
+            </div>
+            <div className="audit-tl-actions">
+              <button
+                className={`audit-flag-btn${isFlagged ? ' audit-flag-btn--on' : ''}`}
+                onClick={() => onToggleFlag(v.id)}
+                title={isFlagged ? 'Unflag record' : 'Flag for review'}
+              >
+                <svg viewBox="0 0 24 24" fill={isFlagged ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" width="14" height="14">
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                  <line x1="4" y1="22" x2="4" y2="15" />
+                </svg>
+              </button>
+              <button className="adm-btn adm-btn-ghost adm-btn-xs" onClick={() => onDetail(v)}>Detail</button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -351,7 +534,17 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
   const [verifyDateFrom, setVerifyDateFrom] = useState('');
   const [verifyDateTo, setVerifyDateTo] = useState('');
   const [verifyDetailItem, setVerifyDetailItem] = useState<VerificationLogItem | null>(null);
-  const VERIFY_PAGE_SIZE = 20;
+  const [auditStats, setAuditStats] = useState<AuditStats | null>(null);
+  const [auditStatsLoading, setAuditStatsLoading] = useState(false);
+  const [verifyView, setVerifyView] = useState<'table' | 'timeline'>('table');
+  const [sortField, setSortField] = useState<'timestamp' | 'confidence' | 'student'>('timestamp');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [verifyPageSize, setVerifyPageSize] = useState(20);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(() => {
+    try { return new Set<string>(JSON.parse(sessionStorage.getItem('audit-flagged') ?? '[]')); }
+    catch { return new Set<string>(); }
+  });
 
   const [users, setUsers] = useState<StaffUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -401,8 +594,8 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
   const loadVerifications = useCallback(async () => {
     setVerifyLoading(true);
     const params: VerificationLogsParams = {
-      skip: verifyPage * VERIFY_PAGE_SIZE,
-      limit: VERIFY_PAGE_SIZE,
+      skip: verifyPage * verifyPageSize,
+      limit: verifyPageSize,
     };
     if (verifySearch) params.search = verifySearch;
     if (verifyModeFilter) params.mode_filter = verifyModeFilter;
@@ -416,9 +609,51 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
     } finally {
       setVerifyLoading(false);
     }
-  }, [verifyPage, verifySearch, verifyModeFilter, verifyResultFilter, verifyDateFrom, verifyDateTo]);
+  }, [verifyPage, verifyPageSize, verifySearch, verifyModeFilter, verifyResultFilter, verifyDateFrom, verifyDateTo]);
 
   useEffect(() => { if (tab === 'verifications') loadVerifications(); }, [tab, loadVerifications]);
+
+  // ── load audit stats ────────────────────────────────────────────────────
+  const loadAuditStats = useCallback(async () => {
+    setAuditStatsLoading(true);
+    try {
+      setAuditStats(await fetchVerificationStats({
+        search: verifySearch || undefined,
+        mode_filter: verifyModeFilter || undefined,
+        result_filter: verifyResultFilter || undefined,
+        date_from: verifyDateFrom || undefined,
+        date_to: verifyDateTo || undefined,
+      }));
+    } catch { /* silently fail */ } finally {
+      setAuditStatsLoading(false);
+    }
+  }, [verifySearch, verifyModeFilter, verifyResultFilter, verifyDateFrom, verifyDateTo]);
+
+  useEffect(() => { if (tab === 'verifications') loadAuditStats(); }, [tab, loadAuditStats]);
+
+  // ── auto-refresh ─────────────────────────────────────────────────────────
+  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!autoRefresh || tab !== 'verifications') {
+      if (autoRefreshRef.current) { clearInterval(autoRefreshRef.current); autoRefreshRef.current = null; }
+      return;
+    }
+    autoRefreshRef.current = setInterval(() => {
+      loadVerifications();
+      loadAuditStats();
+    }, 30_000);
+    return () => { if (autoRefreshRef.current) clearInterval(autoRefreshRef.current); };
+  }, [autoRefresh, tab, loadVerifications, loadAuditStats]);
+
+  // ── flag toggle ─────────────────────────────────────────────────────────
+  const toggleFlag = useCallback((id: string) => {
+    setFlaggedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      sessionStorage.setItem('audit-flagged', JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
 
   // ── export verifications CSV ───────────────────────────────────────────────
   const exportVerificationsCSV = () => {
@@ -568,7 +803,20 @@ export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortal
   };
 
   const totalEnrollPages = Math.ceil(enrollTotal / ENROLL_PAGE_SIZE);
-  const totalVerifyPages = Math.ceil(verifyTotal / VERIFY_PAGE_SIZE);
+  const totalVerifyPages = Math.ceil(verifyTotal / verifyPageSize);
+
+  // ── sorted verifications (client-side, current page) ───────────────────────────
+  const sortedVerifications = useMemo(() => {
+    const arr = [...verifications];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'confidence') cmp = a.match_score - b.match_score;
+      else if (sortField === 'student') cmp = (a.full_name ?? '').localeCompare(b.full_name ?? '');
+      else cmp = a.timestamp.localeCompare(b.timestamp);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [verifications, sortField, sortDir]);
 
   return (
     <div className="adm-portal">
