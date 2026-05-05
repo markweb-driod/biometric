@@ -9,6 +9,7 @@ import { CameraCapture } from './CameraCapture';
 import { FacePreview, QualityPanel } from './FacePreview';
 import type { QualityPhase } from './FacePreview';
 import { StatusBanner } from './StatusBanner';
+import { DeviceSelector } from './DeviceSelector';
 
 type FlowStep = 'capture' | 'submitting' | 'result';
 type CameraStatus = 'idle' | 'requesting-permission' | 'streaming' | 'captured' | 'permission-denied';
@@ -39,7 +40,7 @@ export function VerificationFlow({ onCancel }: VerificationFlowProps) {
   const [matricError, setMatricError] = useState<string | null>(null);
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>('idle');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [cameraDevice] = useState<{ deviceId: string; ready: boolean }>({ deviceId: '', ready: true });
+  const [cameraSetup, setCameraSetup] = useState<{ deviceId: string; ready: boolean }>({ deviceId: '', ready: false });
   const [livenessCount, setLivenessCount] = useState(0);
   const [hasMotionEvidence, setHasMotionEvidence] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -85,6 +86,7 @@ export function VerificationFlow({ onCancel }: VerificationFlowProps) {
     setCapturedImage(null);
     setCameraStatus('idle');
     setSubmitError(null);
+    setCameraSetup((prev) => ({ ...prev, ready: false }));
   }, []);
 
   const doSubmit = useCallback(async (imageData: string) => {
@@ -127,6 +129,7 @@ export function VerificationFlow({ onCancel }: VerificationFlowProps) {
     setMatricError(null);
     setCapturedImage(null);
     setCameraStatus('idle');
+    setCameraSetup((prev) => ({ ...prev, ready: false }));
     livenessFramesRef.current = [];
     setLivenessCount(0);
     setHasMotionEvidence(false);
@@ -158,12 +161,25 @@ export function VerificationFlow({ onCancel }: VerificationFlowProps) {
             </div>
           )}
 
-          {(cameraStatus === 'idle' ||
+          {cameraStatus === 'idle' && !cameraSetup.ready && (
+            <div className="capture-camera-placeholder">
+              <div className="capture-placeholder-icon">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.5 4h-5L7 7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2h-3l-2.5-3z" />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+              </div>
+              <p className="capture-placeholder-title">Camera Offline</p>
+              <p className="capture-placeholder-hint">Select a device and start the camera to begin.</p>
+            </div>
+          )}
+
+          {((cameraStatus === 'idle' && cameraSetup.ready) ||
             cameraStatus === 'requesting-permission' ||
             cameraStatus === 'streaming') && (
             <CameraCapture
               key={cameraKeyRef.current}
-              initialDeviceId={cameraDevice.deviceId}
+              initialDeviceId={cameraSetup.deviceId}
               onCapture={handleCapture}
               onPermissionDenied={(err) => {
                 setCameraError(err);
@@ -201,6 +217,26 @@ export function VerificationFlow({ onCancel }: VerificationFlowProps) {
           </div>
 
           {submitError && <StatusBanner type="error" message={submitError} />}
+
+          {/* Camera device selector — shown before camera starts */}
+          {cameraStatus === 'idle' && !cameraSetup.ready && (
+            <div className="capture-panel-section">
+              <span className="capture-panel-label">Camera Device</span>
+              <DeviceSelector
+                kind="videoinput"
+                selectedDeviceId={cameraSetup.deviceId}
+                onSelect={(id) => setCameraSetup((prev) => ({ ...prev, deviceId: id }))}
+              />
+              <button
+                type="button"
+                className="btn btn-primary btn-full"
+                onClick={() => setCameraSetup((prev) => ({ ...prev, ready: true }))}
+                style={{ marginTop: '0.75rem' }}
+              >
+                Start Camera
+              </button>
+            </div>
+          )}
 
           {/* Matric input */}
           <div className="capture-panel-section">

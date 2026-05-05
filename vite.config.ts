@@ -18,7 +18,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
-    allowedHosts: ['negative-store.outray.app'],
+    allowedHosts: ['sensitive-iron.outray.app', '.outray.app'],
     hmr: {
       host: 'localhost',
       clientPort: 5173,
@@ -26,6 +26,14 @@ export default defineConfig({
     },
     proxy: {
       '/api/v1': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/admin': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+      '/health': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
