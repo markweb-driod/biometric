@@ -207,6 +207,126 @@ function EnrollmentPreviewModal({ item, onClose }: EnrollmentPreviewProps) {
   );
 }
 
+// ── Verification Detail Modal ─────────────────────────────────────────────────
+
+function VerificationDetailModal({ item, onClose }: { item: VerificationLogItem; onClose: () => void }) {
+  const scoreColor = item.match_score >= 75 ? '#16a34a' : item.match_score >= 55 ? '#d97706' : '#dc2626';
+  const thresholdPct = typeof item.threshold === 'number' ? item.threshold * 100 : null;
+  const metaEntries = Object.entries(item.audit_metadata ?? {}).filter(
+    ([k]) => !['operator', 'operator_role', 'threshold', 'raw_confidence', 'decision_reason'].includes(k)
+  );
+
+  return (
+    <div className="adm-modal-overlay" role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="adm-modal adm-vd-modal">
+        <div className="adm-modal-header">
+          <h3 className="adm-modal-title">Verification Detail</h3>
+          <button className="adm-modal-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="adm-vd-body">
+          {/* identity row */}
+          <div className="adm-vd-section">
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">Student</span>
+              <span className="adm-vd-val">{item.full_name || '—'}</span>
+            </div>
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">External ID</span>
+              <span className="adm-vd-val adm-vd-mono">{item.external_id || '—'}</span>
+            </div>
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">Record ID</span>
+              <span className="adm-vd-val adm-vd-mono adm-vd-small">{item.id}</span>
+            </div>
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">Timestamp</span>
+              <span className="adm-vd-val">{fmtTs(item.timestamp)}</span>
+            </div>
+          </div>
+
+          {/* biometric result section */}
+          <div className="adm-vd-section">
+            <div className="adm-vd-section-title">Biometric Result</div>
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">Mode</span>
+              <span className="adm-vd-val">
+                <span className={`adm-badge ${item.matching_mode === '1:1' ? 'badge-blue' : 'badge-purple'}`}>{item.matching_mode}</span>
+              </span>
+            </div>
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">Decision</span>
+              <span className="adm-vd-val">
+                {item.is_successful
+                  ? <span className="adm-badge badge-green">✓ Match</span>
+                  : <span className="adm-badge badge-red">✗ No Match</span>}
+              </span>
+            </div>
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">Liveness</span>
+              <span className="adm-vd-val">
+                {item.liveness_passed
+                  ? <span className="adm-badge badge-green">Passed</span>
+                  : <span className="adm-badge badge-red">Failed</span>}
+              </span>
+            </div>
+            <div className="adm-vd-row adm-vd-row--conf">
+              <span className="adm-vd-key">Confidence</span>
+              <span className="adm-vd-val" style={{ flex: 1 }}>
+                <div className="adm-conf-cell">
+                  <div className="adm-conf-bar-track adm-conf-bar-track--lg">
+                    <div className="adm-conf-bar-fill" style={{ width: `${Math.min(item.match_score, 100)}%`, background: scoreColor }} />
+                    {thresholdPct != null && (
+                      <div className="adm-conf-threshold" style={{ left: `${thresholdPct}%` }} title={`Threshold: ${thresholdPct.toFixed(1)}%`} />
+                    )}
+                  </div>
+                  <span className="adm-conf-label adm-conf-label--lg" style={{ color: scoreColor }}>{item.match_score}%</span>
+                </div>
+                {thresholdPct != null && (
+                  <div className="adm-vd-threshold-note">Threshold active at decision time: {thresholdPct.toFixed(1)}%</div>
+                )}
+              </span>
+            </div>
+            {item.decision_reason && (
+              <div className="adm-vd-row">
+                <span className="adm-vd-key">Reason</span>
+                <span className="adm-vd-val adm-vd-reason">{item.decision_reason}</span>
+              </div>
+            )}
+          </div>
+
+          {/* operator section */}
+          <div className="adm-vd-section">
+            <div className="adm-vd-section-title">Operator</div>
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">Username</span>
+              <span className="adm-vd-val">{item.operator || <em>—</em>}</span>
+            </div>
+            <div className="adm-vd-row">
+              <span className="adm-vd-key">Role</span>
+              <span className="adm-vd-val">{item.operator_role || <em>—</em>}</span>
+            </div>
+          </div>
+
+          {/* extra metadata section */}
+          {metaEntries.length > 0 && (
+            <div className="adm-vd-section">
+              <div className="adm-vd-section-title">Additional Metadata</div>
+              {metaEntries.map(([k, v]) => (
+                <div className="adm-vd-row" key={k}>
+                  <span className="adm-vd-key adm-vd-mono">{k}</span>
+                  <span className="adm-vd-val adm-vd-mono adm-vd-small">
+                    {typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v ?? '—')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── main component ────────────────────────────────────────────────────────────
 
 export function AdminPortal({ activeTab: tab, onTabChange: setTab }: AdminPortalProps) {

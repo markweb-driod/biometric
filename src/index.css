@@ -4981,6 +4981,137 @@ body {
 .adm-preview-val { color: var(--text-primary); font-weight: 500; word-break: break-all; }
 .adm-preview-hash { font-family: monospace; font-size: 0.72rem; color: var(--text-muted); font-weight: 400; }
 
+/* ── filter row wrap variant ────────────────────────────────────────────── */
+.adm-filter-row--wrap { flex-wrap: wrap; align-items: center; }
+
+/* ── date input ─────────────────────────────────────────────────────────── */
+.adm-date-input {
+  padding: 0.42rem 0.65rem;
+  border: 1px solid var(--border-medium);
+  border-radius: 7px;
+  background: var(--bg-surface-2);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  outline: none;
+  cursor: pointer;
+  color-scheme: dark;
+}
+.adm-date-input:focus { border-color: var(--accent); }
+
+/* ── confidence bar ─────────────────────────────────────────────────────── */
+.adm-conf-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.adm-conf-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-surface-3);
+  border-radius: 3px;
+  position: relative;
+  overflow: visible;
+  min-width: 60px;
+}
+.adm-conf-bar-track--lg { height: 10px; border-radius: 5px; }
+.adm-conf-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+/* threshold marker line */
+.adm-conf-threshold {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 1px;
+  pointer-events: none;
+}
+.adm-conf-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  min-width: 38px;
+  text-align: right;
+}
+.adm-conf-label--lg { font-size: 0.88rem; }
+
+/* ── section sub-title ─────────────────────────────────────────────────── */
+.adm-section-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0.1rem 0 0;
+}
+
+/* ── operator chip ─────────────────────────────────────────────────────── */
+.adm-operator-chip {
+  display: inline-block;
+  font-size: 0.74rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  background: var(--bg-surface-3);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+.adm-td-operator { white-space: nowrap; }
+.adm-td-unknown { color: var(--text-muted); font-style: italic; }
+
+/* ── Verification Detail Modal ─────────────────────────────────────────── */
+.adm-vd-modal {
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.adm-modal-title { font-size: 0.95rem; font-weight: 600; margin: 0; }
+.adm-vd-body { display: flex; flex-direction: column; gap: 1rem; }
+.adm-vd-section {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.adm-vd-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.1rem;
+}
+.adm-vd-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.adm-vd-row--conf { align-items: center; }
+.adm-vd-key {
+  min-width: 90px;
+  font-size: 0.77rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  padding-top: 0.08rem;
+}
+.adm-vd-val {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  word-break: break-all;
+  flex: 1;
+}
+.adm-vd-mono { font-family: monospace; font-weight: 400; }
+.adm-vd-small { font-size: 0.72rem; color: var(--text-muted); }
+.adm-vd-reason { font-style: italic; color: var(--text-secondary); font-weight: 400; }
+.adm-vd-threshold-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
+
 @media (max-width: 1100px) {
   .adm-stats-grid { grid-template-columns: repeat(3, 1fr); }
   .adm-quick-actions { grid-template-columns: repeat(2, 1fr); }
